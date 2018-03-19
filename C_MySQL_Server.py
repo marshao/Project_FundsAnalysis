@@ -11,7 +11,7 @@
 
 from sqlalchemy import create_engine
 
-class MySQLServer:
+class MySQLServer():
 
     def __init__(self, des=None):
         if des is None:
