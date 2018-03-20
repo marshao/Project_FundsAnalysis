@@ -105,11 +105,37 @@ class FundSpider():
         return result
 
     def __getFundCodes(self):
+        '''
+        This function get all open-end funds code, name, long_status, and short_status
+        :return:
+        '''
         fund_url = 'http://fund.eastmoney.com/allfund.html'
-        res = self.__getURL(fund_url)
+        fund_url_2 = 'http://fund.eastmoney.com/jzzzl.html#os_0;isall_1;ft_|;pt_1'
+        fund_url_3 = 'http://fund.eastmoney.com/Data/Fund_JJJZ_Data.aspx?t=1&lx=1&letter=&gsid=&text=&sort=zdf,desc&page=1,9999&feature=|&dt=1521532639782&atfc=&onlySale=0'
+        res = self.__getURL(fund_url_2)
         soup = BeautifulSoup(res.text, 'html.parser')
         result = {}
-        print soup
+        temp = {}
+        #temp['fund_code'] = soup.find_all(attrs={'class':'bzdm'})
+        #temp['long_status']   = soup.find_all(attrs={'class':'sgzt'})
+        #temp['short_status']  = soup.find_all(attrs={'class':'shzt'})
+        temp['fund_name']     = soup.find_all(attrs={'class': 'tol'})
+
+        for k, v in temp.iteritems():
+            l = []
+            print v
+            for each_v in v:
+                l.append(each_v.title)
+            result[k] = l
+
+        print result
+
+
+
+    def __get_text(self, result):
+        temp = []
+        for each_code in result['fund_code']:
+            temp.append(each_code.get_text())
 
     def __getFundBaseInfor(self, fund_code=None, quote_time=None, func=None):
         pass
