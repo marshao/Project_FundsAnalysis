@@ -10,6 +10,8 @@
 #############################################################################
 
 from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import Table, MetaData, exists, update, and_, select, bindparam
 
 class MySQLServer():
 
@@ -17,43 +19,57 @@ class MySQLServer():
         if des is None:
             des = 'pro'
         if des == 'pro':
-            self.pro_db_engine = create_engine(
+            self.db_engine = create_engine(
             'mysql+mysqldb://marshao:123@10.175.10.231/DB_FundsAnalysis?charset=utf8',
             encoding='utf-8', pool_size=150),
         else:
-            self.dev_db_engine = create_engine(
+            self.db_engine = create_engine(
             'mysql+mysqldb://marshao:123@10.176.50.233/DB_FundsAnalysis?charset=utf8',
             encoding='utf-8', pool_size=150)
 
+        DBSession = sessionmaker(bind=self.db_engine)
+        self.session = DBSession()
+        meta = MetaData(self.db_engine)
+
+        # Delare Table
+        self.fund_list = Table('tb_FundList', meta, autoload=True)
+        #SHFactors = Table('tb_StockSHFactors', meta, autoload=True)
+
     def getEngine(self, des=None):
-        if des is None:
-            des = 'pro'
+        return self.db_engine
 
-        if des == 'pro':
-            return self.pro_db_engine
-        else: return self.dev_db_engine
+    def getTable(self, tb_name):
+        return  Table(tb_name, meta, autoload=True)
 
-    def processData(self, func=None, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None):
+    def processData(self, func=None, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None, parameter=None):
         if func == 'insert':
-            self.__insertData(und_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None)
+            self.__insertData(fund_code=fund_code, quote_time=quote_time, sql_script=sql_script, des_table=des_table, src_table=src_table parameter=parameter)
         elif func == 'update':
-            self.__udpateData(und_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None)
+            self.__updateData(fund_code=fund_code, quote_time=quote_time, sql_script=sql_script, des_table=des_table, src_table=src_table parameter=parameter)
         elif func == 'select':
-            self.__selectData(und_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None)
+            pass
         elif func == 'trunk':
-            self.__trunkData(und_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None)
+            self.__trunkData(fund_code=fund_code, quote_time=quote_time, sql_script=sql_script, des_table=des_table, src_table=src_table parameter=parameter)
+        elif func == 'upsert':
+            self.__upsertData(fund_code=fund_code, quote_time=quote_time, sql_script=sql_script, des_table=des_table, src_table=src_table parameter=parameter)
         else:
             print "DB engine do not have %s function"%func
 
 
-    def __insertData(self, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None):
+    def __insertData(self, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None, parameter=None):
         pass
 
-    def __updateData(self, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None):
+    def __upsertData(self, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None, parameter=None):
+        stat = des_table.insert(). \
+            values(fund_code=bindparam('fund_code'), fund_name = bindparam('fund_name')
+                   long_status=bindparam('long_status'), short_status = bindparam('short_status')). \
+            on dupliate key update
+
+    def __updateData(self, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None, parameter=None):
         pass
 
-    def __selectData(self, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None):
+    def __selectData(self, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None, parameter=None):
         pass
 
-    def __trunkData(self, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None):
+    def __trunkData(self, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None, parameter=None):
         pass

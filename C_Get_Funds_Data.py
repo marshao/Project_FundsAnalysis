@@ -104,6 +104,54 @@ class FundSpider():
         }
         return result
 
+    def __getFundCodes2(self):
+        '''
+        This function get all open-end funds code, name, long_status, and short_status
+        :return:
+        '''
+        #Get instance of des table in db
+        tb_FundList = self.db_server.getTable('tb_FundList')
+
+        #Get Funds Name URL
+        fund_url = 'http://fund.eastmoney.com/allfund.html'
+        fund_url_2 = 'http://fund.eastmoney.com/jzzzl.html#os_0;isall_1;ft_|;pt_1'
+        fund_url_3 = 'http://fund.eastmoney.com/Data/Fund_JJJZ_Data.aspx?t=1&lx=1&letter=&gsid=&text=&sort=zdf,' \
+                     'desc&page=1,9999&feature=|&dt=1521532639782&atfc=&onlySale=0'
+
+        #Get URL Contents
+        res = self.__getURL(fund_url_3)
+        soup = BeautifulSoup(res.text, 'html.parser')
+
+        # Process URL Contents
+        fullstring = soup.string.encode(encoding="UTF_8")
+        beg_pos = fullstring.find('datas:[') + 8
+        end_pos = fullstring.find('count')-3
+        datastring = fullstring[beg_pos:end_pos].split("],[")
+        fund_count = len(datastring)
+
+        for idx in range(0, fund_count):
+            datastring[idx] = datastring[idx].replace('"','')
+
+            # long-status, 0=stop, 1=buy, 2=big amount long
+            datastring[idx] = datastring[idx].replace("\xe5\xbc\x80\xe6\x94\xbe\xe7\x94\xb3\xe8\xb4\xad", "1")
+            datastring[idx] = datastring[idx].replace("\xe6\x9a\x82\xe5\x81\x9c\xe7\x94\xb3\xe8\xb4\xad", "0")
+            datastring[idx] = datastring[idx].replace("\xe9\x99\x90\xe5\xa4\xa7\xe9\xa2\x9d", "2")
+
+            #short_status, 0=stop, 1=sale
+            datastring[idx] = datastring[idx].replace("\xe5\xbc\x80\xe6\x94\xbe\xe8\xb5\x8e\xe5\x9b\x9e", "1")
+            datastring[idx] = datastring[idx].replace("\xe6\x9a\x82\xe5\x81\x9c\xe8\xb5\x8e\xe5\x9b\x9e", "0")
+            datastring[idx] = datastring[idx].replace("\xe5\xb0\x81\xe9\x97\xad\xe6\x9c\x9f", "0")
+
+            datastring[idx] = datastring[idx].split(",")
+            datastring[idx] = [datastring[idx][i] for i in (0,1,9,10)]
+
+        #Upsert fund list into db table
+        self.db_server.processData(func='upsert', des_table=tb_FundList, parameter=datastring)
+
+
+
+
+
     def __getFundCodes(self):
         '''
         This function get all open-end funds code, name, long_status, and short_status
@@ -111,22 +159,49 @@ class FundSpider():
         '''
         fund_url = 'http://fund.eastmoney.com/allfund.html'
         fund_url_2 = 'http://fund.eastmoney.com/jzzzl.html#os_0;isall_1;ft_|;pt_1'
-        fund_url_3 = 'http://fund.eastmoney.com/Data/Fund_JJJZ_Data.aspx?t=1&lx=1&letter=&gsid=&text=&sort=zdf,desc&page=1,9999&feature=|&dt=1521532639782&atfc=&onlySale=0'
+        fund_url_3 = 'http://fund.eastmoney.com/Data/Fund_JJJZ_Data.aspx?t=1&lx=1&letter=&gsid=&text=&sort=zdf,' \
+                     'desc&page=1,9999&feature=|&dt=1521532639782&atfc=&onlySale=0'
         res = self.__getURL(fund_url_2)
+        #soup = BeautifulSoup(res.text.decode('gbk', 'utf8'), 'html.parser')
         soup = BeautifulSoup(res.text, 'html.parser')
-        result = {}
+        result = pd.DataFrame()
         temp = {}
-        #temp['fund_code'] = soup.find_all(attrs={'class':'bzdm'})
-        #temp['long_status']   = soup.find_all(attrs={'class':'sgzt'})
-        #temp['short_status']  = soup.find_all(attrs={'class':'shzt'})
-        temp['fund_name']     = soup.find_all(attrs={'class': 'tol'})
+        #print soup.find_all(id="tableDiv", attrs={'class':'odd'})
 
-        for k, v in temp.iteritems():
+
+        temp['fund_code'] = soup.find_all(attrs={'class':'bzdm'})
+        temp['fund_name'] = soup.find_all(attrs={'class': 'tol'})
+        temp['long_status']   = soup.find_all(attrs={'class':'sgzt'})
+        temp['short_status']  = soup.find_all(attrs={'class':'shzt'})
+
+
+        for key, value in temp.iteritems():
             l = []
-            print v
-            for each_v in v:
-                l.append(each_v.title)
-            result[k] = l
+            if key == 'fund_name':
+                for each_v in value:
+                    title = each_v.find('a')
+                    l.append(title.get('title'))
+            elif key=='long_status':
+                for each_v in value:
+                    each_v = each_v.string
+                    if each_v == u'\xd4\xdd\xcd\xa3':
+                        l.append(0)
+                    elif each_v == u'\xcf\xde\xb4\xf3\xb6\xee':
+                        l.append(2)
+                    else:
+                        l.append(1)
+            elif key == 'short_status':
+                for each_v in value:
+                    each_v = each_v.string
+                    if each_v == (u'\xbf\xaa\xb7\xc5'):
+                        l.append(1)
+                    else:
+                        l.append(0)
+            else:
+                for each_v in value:
+                    l.append(each_v.string)
+
+            result[key] = l
 
         print result
 
@@ -165,7 +240,7 @@ class FundSpider():
         pass
 
     def getFundInforFromWeb(self, fund_code=None, func=None, quote_time=None, infor=None):
-        self.__getFundCodes()
+        self.__getFundCodes2()
 
 def main():
     fspider = FundSpider()
