@@ -47,7 +47,8 @@ class MySQLServer():
         elif func == 'update':
             self.__updateData(fund_code=fund_code, quote_time=quote_time, sql_script=sql_script, des_table=des_table, src_table=src_table, parameter=parameter)
         elif func == 'select':
-            pass
+            self.__selectData(fund_code=fund_code, quote_time=quote_time, sql_script=sql_script, des_table=des_table,
+                              src_table=src_table, parameter=parameter)
         elif func == 'trunk':
             self.__trunkData(fund_code=fund_code, quote_time=quote_time, sql_script=sql_script, des_table=des_table, src_table=src_table, parameter=parameter)
         elif func == 'upsert':
