@@ -29,7 +29,7 @@ class MySQLServer():
 
         DBSession = sessionmaker(bind=self.db_engine)
         self.session = DBSession()
-        meta = MetaData(self.db_engine)
+        self.meta = MetaData(self.db_engine)
 
         # Delare Table
         self.fund_list = Table('tb_FundList', meta, autoload=True)
@@ -39,19 +39,19 @@ class MySQLServer():
         return self.db_engine
 
     def getTable(self, tb_name):
-        return  Table(tb_name, meta, autoload=True)
+        return  Table(tb_name, self.meta, autoload=True)
 
     def processData(self, func=None, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None, parameter=None):
         if func == 'insert':
-            self.__insertData(fund_code=fund_code, quote_time=quote_time, sql_script=sql_script, des_table=des_table, src_table=src_table parameter=parameter)
+            self.__insertData(fund_code=fund_code, quote_time=quote_time, sql_script=sql_script, des_table=des_table, src_table=src_table, parameter=parameter)
         elif func == 'update':
-            self.__updateData(fund_code=fund_code, quote_time=quote_time, sql_script=sql_script, des_table=des_table, src_table=src_table parameter=parameter)
+            self.__updateData(fund_code=fund_code, quote_time=quote_time, sql_script=sql_script, des_table=des_table, src_table=src_table, parameter=parameter)
         elif func == 'select':
             pass
         elif func == 'trunk':
-            self.__trunkData(fund_code=fund_code, quote_time=quote_time, sql_script=sql_script, des_table=des_table, src_table=src_table parameter=parameter)
+            self.__trunkData(fund_code=fund_code, quote_time=quote_time, sql_script=sql_script, des_table=des_table, src_table=src_table, parameter=parameter)
         elif func == 'upsert':
-            self.__upsertData(fund_code=fund_code, quote_time=quote_time, sql_script=sql_script, des_table=des_table, src_table=src_table parameter=parameter)
+            self.__upsertData(fund_code=fund_code, quote_time=quote_time, sql_script=sql_script, des_table=des_table, src_table=src_table, parameter=parameter)
         else:
             print "DB engine do not have %s function"%func
 
@@ -61,9 +61,9 @@ class MySQLServer():
 
     def __upsertData(self, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None, parameter=None):
         stat = des_table.insert(). \
-            values(fund_code=bindparam('fund_code'), fund_name = bindparam('fund_name')
+            values(fund_code=bindparam('fund_code'), fund_name = bindparam('fund_name'), \
                    long_status=bindparam('long_status'), short_status = bindparam('short_status')). \
-            on dupliate key update
+                    where(~exists(self.__updateData()))
 
     def __updateData(self, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None, parameter=None):
         pass
