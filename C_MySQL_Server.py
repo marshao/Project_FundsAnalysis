@@ -21,7 +21,7 @@ class MySQLServer():
         if des == 'pro':
             self.db_engine = create_engine(
             'mysql+mysqldb://marshao:123@10.175.10.231/DB_FundsAnalysis?charset=utf8',
-            encoding='utf-8', pool_size=150),
+                encoding='utf-8', pool_size=150, echo=True),
         else:
             self.db_engine = create_engine(
             'mysql+mysqldb://marshao:123@10.176.50.233/DB_FundsAnalysis?charset=utf8',
@@ -31,15 +31,19 @@ class MySQLServer():
         self.session = DBSession()
         self.meta = MetaData(self.db_engine)
 
+
         # Delare Table
-        self.fund_list = Table('tb_FundList', meta, autoload=True)
-        #SHFactors = Table('tb_StockSHFactors', meta, autoload=True)
+        # SHFactors = Table('tb_StockSHFactors', self.meta, autoload=True)
 
     def getEngine(self, des=None):
         return self.db_engine
 
+    def getSession(self):
+        return self.session
+
     def getTable(self, tb_name):
         return  Table(tb_name, self.meta, autoload=True)
+
 
     def processData(self, func=None, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None, parameter=None):
         if func == 'insert':
@@ -64,10 +68,13 @@ class MySQLServer():
         stat = des_table.insert(). \
             values(fund_code=bindparam('fund_code'), fund_name = bindparam('fund_name'), \
                    long_status=bindparam('long_status'), short_status = bindparam('short_status')). \
-                    where(~exists(self.__updateData()))
+            where(~exists(self.__updateData(fund_code=fund_code, quote_time=quote_time, sql_script=sql_script, \
+                                            des_table=des_table, src_table=src_table, parameter=parameter)))
 
     def __updateData(self, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None, parameter=None):
-        pass
+        stat = des_table.update(). \
+            values(fund_code=bindparam('fund_code'), fund_name=bindparam('fund_name'), \
+                   long_status=bindparam('long_status'), short_status=bindparam('short_status'))
 
     def __selectData(self, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None, parameter=None):
         pass

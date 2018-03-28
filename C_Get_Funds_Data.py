@@ -20,12 +20,16 @@ import os
 import pandas as pd
 import re
 import C_MySQL_Server as db
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import Table, MetaData, exists, update, and_, select, bindparam
 
 class FundSpider():
     def __init__(self):
         self.db_server = db.MySQLServer()
         self.db_engine = self.db_server.getEngine()
         self.header = self.__getHeader()
+        self.session = self.db_server.getSession()
         self.isproxy = 0
         self.proxy = {"http": "http://110.37.84.147:8080", "https": "http://110.37.84.147:8080"}
 
@@ -104,13 +108,13 @@ class FundSpider():
         }
         return result
 
-    def __getFundCodes2(self):
+    def __getFundCodes(self):
         '''
         This function get all open-end funds code, name, long_status, and short_status
         :return:
         '''
         #Get instance of des table in db
-        tb_FundList = self.db_server.getTable('tb_FundList')
+        # tb_FundList = self.db_server.getTable('DB_FundsAnalysis.tb_FundList')
 
         #Get Funds Name URL
         fund_url = 'http://fund.eastmoney.com/allfund.html'
@@ -128,6 +132,7 @@ class FundSpider():
         end_pos = fullstring.find('count')-3
         datastring = fullstring[beg_pos:end_pos].split("],[")
         fund_count = len(datastring)
+        parameters = {}
 
         for idx in range(0, fund_count):
             datastring[idx] = datastring[idx].replace('"','')
@@ -143,16 +148,31 @@ class FundSpider():
             datastring[idx] = datastring[idx].replace("\xe5\xb0\x81\xe9\x97\xad\xe6\x9c\x9f", "0")
 
             datastring[idx] = datastring[idx].split(",")
+            # parameters.append({'fund_code': datastring[idx][0], 'fund_name': datastring[idx][1],
+            #                   'long_status':datastring[idx][9], 'short_status':datastring[idx][10]})
             datastring[idx] = [datastring[idx][i] for i in (0,1,9,10)]
+        df_data = pd.DataFrame(datastring, columns=['fund_code', 'fund_name', 'long_status', 'short_status'])
 
+        engine = create_engine(
+            'mysql+mysqldb://marshao:123@10.175.10.231/DB_FundsAnalysis',
+            encoding='utf-8', pool_size=150, echo=True)
+
+        df_data.to_sql('tb_FundList', if_exists='replace', con=engine, index=False)
         #Upsert fund list into db table
-        self.db_server.processData(func='upsert', des_table=tb_FundList, parameter=datastring)
+        # self.db_server.processData(func='upsert', des_table=tb_FundList, parameter=datastring)
+        '''
+        update_stat = tb_FundList.update(). \
+            values( fund_name=bindparam('fund_name'), \
+                   long_status=bindparam('long_status'), short_status=bindparam('short_status')).\
+            where (tb_FundList.c.fund_code == bindparam('fund_code'))
 
+        upsert_stat = tb_FundList.insert(). \
+            values(fund_code=bindparam('fund_code'), fund_name=bindparam('fund_name'), \
+                   long_status=bindparam('long_status'), short_status=bindparam('short_status')). \
+            where(~exists(update_stat))
+        '''
 
-
-
-
-    def __getFundCodes(self):
+    def __getFundCodes_alt(self):
         '''
         This function get all open-end funds code, name, long_status, and short_status
         :return:
@@ -240,7 +260,7 @@ class FundSpider():
         pass
 
     def getFundInforFromWeb(self, fund_code=None, func=None, quote_time=None, infor=None):
-        self.__getFundCodes2()
+        self.__getFundCodes()
 
 def main():
     fspider = FundSpider()
