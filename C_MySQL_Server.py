@@ -16,7 +16,7 @@ from sqlalchemy import Table, MetaData, exists, update, and_, select, bindparam
 
 class MySQLServer():
     db_engine = create_engine('mysql+mysqldb://marshao:123@10.175.10.231/DB_FundsAnalysis?charset=utf8',
-                              encoding='utf-8', pool_size=150, echo=True)
+                              encoding='utf-8', pool_size=150, echo=False)
     DBSession = sessionmaker(bind=db_engine)
     session = DBSession()
     # session.execute('show databases')

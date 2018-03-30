@@ -16,13 +16,11 @@ import requests
 from bs4 import BeautifulSoup
 import time
 import random
-import os
 import pandas as pd
 import re
 import C_MySQL_Server as db
-from sqlalchemy import create_engine
 from sqlalchemy.dialects.mysql import insert
-from sqlalchemy import Table, MetaData, exists, update, and_, select, bindparam
+from sqlalchemy import bindparam
 
 class FundSpider():
     def __init__(self):
@@ -162,12 +160,6 @@ class FundSpider():
         # df_data = pd.DataFrame(datastring, columns=['fund_code', 'fund_name', 'long_status', 'short_status'])
         #df_data.to_sql('tb_FundList', if_exists='append', con=self.db_server.db_engine, index=False)
 
-
-        #Upsert fund list into db table
-        # self.db_server.processData(func='upsert', des_table=tb_FundList, parameter=datastring)
-
-
-
         insert_stat = insert(tb_FundList). \
             values(fund_code=bindparam('fund_code'),
                    fund_name=bindparam('fund_name'),
@@ -175,13 +167,14 @@ class FundSpider():
                    short_status=bindparam('short_status'))
 
         upsert_stat = insert_stat.on_duplicate_key_update(
-            fund_name=insert_stat.inserted.fund_name,
-            long_status=bindparam('long_status'),
-            short_status=bindparam('short_status')
+            long_status=insert_stat.inserted.long_status,
+            short_status=insert_stat.inserted.short_status
         )
 
         # stat = [upsert_stat, upsert_stat]
         self.db_server.processData(func='upsert', sql_script=upsert_stat, parameter=parameters)
+
+        return datastring
 
     def __getFundCodes_alt(self):
         '''
@@ -236,15 +229,134 @@ class FundSpider():
 
         print result
 
-
-
-    def __get_text(self, result):
-        temp = []
-        for each_code in result['fund_code']:
-            temp.append(each_code.get_text())
-
     def __getFundBaseInfor(self, fund_code=None, quote_time=None, func=None):
-        pass
+        '''
+        获取基金概况基本信息
+        :param fund_code:
+        :param quote_time:
+        :param func:
+        :return:
+        '''
+
+        fund_url = 'http://fund.eastmoney.com/f10/jbgk_' + fund_code + '.html'
+        result = {}
+        res = self.__getURL(fund_url)
+        soup = BeautifulSoup(res.text, 'html.parser')
+
+        try:
+            result['fund_code'] = fund_code
+            result['fund_name'] = soup.find_all(text=u"基金全称")[0].next_element.text.strip()
+            result['fund_abbr_name'] = soup.find_all(text=u"基金简称")[0].next_element.text.strip()
+            result['fund_type'] = soup.find_all(text=u"基金类型")[0].next_element.text.strip()
+            result['issue_date'] = soup.find_all(text=u"发行日期")[0].next_element.text.strip()
+            result['establish_date'] = soup.find_all(text=u"成立日期/规模")[0].next_element.text.split(u'/')[0].strip()
+            result['establish_scale'] = soup.find_all(text=u"成立日期/规模")[0].next_element.text.split(u'/')[-1].strip()
+            result['asset_value'] = soup.find_all(text=u"资产规模")[0].next_element.text.split(u'（')[0].strip()
+            result['asset_value_date'] = soup.find_all(text=u"资产规模")[0].next_element.text.split(u'（')[1].split(u'）')[
+                0].strip(u'截止至：')
+            result['units'] = soup.find_all(text=u"份额规模")[0].next_element.text.strip().split(u'（')[0].strip()
+            result['units_date'] = soup.find_all(text=u"份额规模")[0].next_element.text.strip().split(u'（')[1].strip(
+                u'（截止至：）')
+            result['fund_manager'] = soup.find_all(text=u"基金管理人")[0].next_element.text.strip()
+            result['fund_trustee'] = soup.find_all(text=u"基金托管人")[0].next_element.text.strip()
+            result['funder'] = soup.find_all(text=u"基金经理人")[0].next_element.text.strip()
+            result['total_div'] = soup.find_all(text=u"成立来分红")[0].next_element.text.strip()
+            result['mgt_fee'] = soup.find_all(text=u"管理费率")[0].next_element.text.strip()
+            result['trust_fee'] = soup.find_all(text=u"托管费率")[0].next_element.text.strip()
+            result['sale_fee'] = soup.find_all(text=u"销售服务费率")[0].next_element.text.strip()
+            result['buy_fee'] = soup.find_all(text=u"最高认购费率")[0].next_element.text.strip()
+            result['buy_fee2'] = soup.find_all(text=u"最高申购费率")[0].next_element.text.strip()
+            result['benchmark'] = soup.find_all(text=u"业绩比较基准")[0].next_element.text.strip(u'该基金暂未披露业绩比较基准')
+            result['underlying'] = soup.find_all(text=u"跟踪标的")[0].next_element.text.strip(u'该基金无跟踪标的')
+            result = self.__baseInforCleaning(result)
+        except  Exception as e:
+            print (self.__getCurrentTime(), fund_code, fund_url, e)
+        # '''
+        try:
+            tb_FundInfo = self.db_server.getTable('tb_FundInfo')
+            insert_stat = insert(tb_FundInfo). \
+                values(fund_code=bindparam('fund_code'),
+                       fund_name=bindparam('fund_name'),
+                       fund_abbr_name=bindparam('fund_abbr_name'),
+                       fund_type=bindparam('fund_type'),
+                       issue_date=bindparam('issue_date'),
+                       establish_date=bindparam('establish_date'),
+                       establish_scale=bindparam('establish_scale'),
+                       asset_value=bindparam('asset_value'),
+                       asset_value_date=bindparam('asset_value_date'),
+                       units=bindparam('units'),
+                       units_date=bindparam('units_date'),
+                       fund_manager=bindparam('fund_manager'),
+                       fund_trustee=bindparam('fund_trustee'),
+                       funder=bindparam('funder'),
+                       total_div=bindparam('total_div'),
+                       mgt_fee=bindparam('mgt_fee'),
+                       trust_fee=bindparam('trust_fee'),
+                       sale_fee=bindparam('sale_fee'),
+                       buy_fee=bindparam('buy_fee'),
+                       buy_fee2=bindparam('buy_fee2'),
+                       benchmark=bindparam('benchmark'),
+                       underlying=bindparam('underlying')
+                       )
+
+            upsert_stat = insert_stat.on_duplicate_key_update(
+                fund_name=insert_stat.inserted.fund_name,
+                fund_abbr_name=insert_stat.inserted.fund_abbr_name,
+                fund_type=insert_stat.inserted.fund_type,
+                issue_date=insert_stat.inserted.issue_date,
+                establish_date=insert_stat.inserted.establish_date,
+                establish_scale=insert_stat.inserted.establish_scale,
+                asset_value=insert_stat.inserted.asset_value,
+                asset_value_date=insert_stat.inserted.asset_value_date,
+                units=insert_stat.inserted.units,
+                units_date=insert_stat.inserted.units_date,
+                fund_manager=insert_stat.inserted.fund_manager,
+                fund_trustee=insert_stat.inserted.fund_trustee,
+                funder=insert_stat.inserted.funder,
+                total_div=insert_stat.inserted.total_div,
+                mgt_fee=insert_stat.inserted.mgt_fee,
+                trust_fee=insert_stat.inserted.trust_fee,
+                sale_fee=insert_stat.inserted.sale_fee,
+                buy_fee=insert_stat.inserted.buy_fee,
+                buy_fee2=insert_stat.inserted.buy_fee2,
+                benchmark=insert_stat.inserted.benchmark,
+                underlying=insert_stat.inserted.underlying
+            )
+            self.db_server.processData(func='upsert', sql_script=upsert_stat, parameter=result)
+            # print (self.getCurrentTime(),'Fund Info Insert Sucess:', result['fund_code'],result['fund_name'],result['fund_abbr_name'],result['fund_manager'],result['funder'],result['establish_date'],result['establish_scale'],result['benchmark'] )
+        except  Exception as e:
+            print (self.__getCurrentTime(), fund_code, fund_url, e)
+
+        try:
+            print (
+                self.__getCurrentTime(), 'getFundInfo:', result['fund_code'], result['fund_name'],
+                result['fund_abbr_name'],
+                result['fund_manager'], result['funder'], result['establish_date'], result['establish_scale'],
+                result['benchmark']
+                # ,result['issue_date'],result['asset_value'],result['asset_value_date'], result['unit'],result['unit_date'],result['fund_trustee']
+                # ,result['total_div'],result['mg_fee'],result['trust_fee'], result['sale_fee'], result['buy_fee'],result['buy_fee2'],result['underlying']
+            )
+        except  Exception as e:
+            print (self.__getCurrentTime(), fund_code, fund_url, e)
+        # '''
+        return result
+
+    def __baseInforCleaning(self, base_infor):
+        base_infor['mgt_fee'] = self.__eliminateEmbrace(base_infor['mgt_fee'])
+        base_infor['trust_fee'] = self.__eliminateEmbrace(base_infor['trust_fee'])
+        base_infor['buy_fee'] = self.__eliminateEmbrace(base_infor['buy_fee'])
+        base_infor['buy_fee2'] = self.__eliminateEmbrace(base_infor['buy_fee2'])
+        base_infor['sale_fee'] = self.__eliminateEmbrace(base_infor['sale_fee'])
+        return base_infor
+
+    def __eliminateEmbrace(self, data):
+        pos = data.find('%')
+        data = data[0:pos].encode('utf-8')
+        if data.find('-') != -1:
+            data = 0.0
+        else:
+            data = float(data) / 100
+        return data
 
     def __getFundManagerInfor(self, fund_code=None, quote_time=None, func=None):
         pass
@@ -271,7 +383,8 @@ class FundSpider():
         pass
 
     def getFundInforFromWeb(self, fund_code=None, func=None, quote_time=None, infor=None):
-        self.__getFundCodes()
+        # fund_list = self.__getFundCodes()
+        self.__getFundBaseInfor(fund_code='005779')
 
 def main():
     fspider = FundSpider()
