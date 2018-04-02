@@ -14,7 +14,7 @@
 
 import requests
 from bs4 import BeautifulSoup
-import time
+import time, datetime
 import random
 import pandas as pd
 import re
@@ -237,7 +237,6 @@ class FundSpider():
         :param func:
         :return:
         '''
-
         fund_url = 'http://fund.eastmoney.com/f10/jbgk_' + fund_code + '.html'
         result = {}
         res = self.__getURL(fund_url)
@@ -249,19 +248,30 @@ class FundSpider():
             result['fund_abbr_name'] = soup.find_all(text=u"基金简称")[0].next_element.text.strip()
             result['fund_type'] = soup.find_all(text=u"基金类型")[0].next_element.text.strip()
             result['issue_date'] = soup.find_all(text=u"发行日期")[0].next_element.text.strip()
+
             result['establish_date'] = soup.find_all(text=u"成立日期/规模")[0].next_element.text.split(u'/')[0].strip()
             result['establish_scale'] = soup.find_all(text=u"成立日期/规模")[0].next_element.text.split(u'/')[-1].strip()
             result['asset_value'] = soup.find_all(text=u"资产规模")[0].next_element.text.split(u'（')[0].strip()
-            result['asset_value_date'] = soup.find_all(text=u"资产规模")[0].next_element.text.split(u'（')[1].split(u'）')[
-                0].strip(u'截止至：')
+            # Sometime the value are '---', that will stop the next step
+            if soup.find_all(text=u"资产规模")[0].next_element.text.find('-') == -1:
+                result['asset_value_date'] = \
+                    soup.find_all(text=u"资产规模")[0].next_element.text.split(u'（')[1].split(u'）')[0].strip(u'截止至：')
+            else:
+                result['asset_value_date'] = None
             result['units'] = soup.find_all(text=u"份额规模")[0].next_element.text.strip().split(u'（')[0].strip()
-            result['units_date'] = soup.find_all(text=u"份额规模")[0].next_element.text.strip().split(u'（')[1].strip(
-                u'（截止至：）')
+            if soup.find_all(text=u"份额规模")[0].next_element.text == -1:
+                result['units_date'] = soup.find_all(text=u"份额规模")[0].next_element.text.strip().split(u'（')[1].strip(
+                    u'（截止至：）')
+            else:
+                result['units_date'] = None
+            # result['units_date'] = soup.find_all(text=u"份额规模")[0].next_element.text.strip().split(u'（')[1].strip(u'（截止至：）')
+            #result['asset_value_date'] = soup.find_all(text=u"资产规模")[0].next_element.text.split(u'（')[1].split(u'）')[0].strip(u'截止至：')
             result['fund_manager'] = soup.find_all(text=u"基金管理人")[0].next_element.text.strip()
             result['fund_trustee'] = soup.find_all(text=u"基金托管人")[0].next_element.text.strip()
             result['funder'] = soup.find_all(text=u"基金经理人")[0].next_element.text.strip()
             result['total_div'] = soup.find_all(text=u"成立来分红")[0].next_element.text.strip()
             result['mgt_fee'] = soup.find_all(text=u"管理费率")[0].next_element.text.strip()
+
             result['trust_fee'] = soup.find_all(text=u"托管费率")[0].next_element.text.strip()
             result['sale_fee'] = soup.find_all(text=u"销售服务费率")[0].next_element.text.strip()
             result['buy_fee'] = soup.find_all(text=u"最高认购费率")[0].next_element.text.strip()
@@ -270,8 +280,10 @@ class FundSpider():
             result['underlying'] = soup.find_all(text=u"跟踪标的")[0].next_element.text.strip(u'该基金无跟踪标的')
             result = self.__baseInforCleaning(result)
         except  Exception as e:
-            print (self.__getCurrentTime(), fund_code, fund_url, e)
-        # '''
+            print ''
+            print 'Fund %s Data Cleaning error:' % result['fund_code']
+            # print 'Error is %s' %e
+            #print (self.__getCurrentTime(), fund_code, fund_url, e)
         try:
             tb_FundInfo = self.db_server.getTable('tb_FundInfo')
             insert_stat = insert(tb_FundInfo). \
@@ -325,38 +337,87 @@ class FundSpider():
             self.db_server.processData(func='upsert', sql_script=upsert_stat, parameter=result)
             # print (self.getCurrentTime(),'Fund Info Insert Sucess:', result['fund_code'],result['fund_name'],result['fund_abbr_name'],result['fund_manager'],result['funder'],result['establish_date'],result['establish_scale'],result['benchmark'] )
         except  Exception as e:
-            print (self.__getCurrentTime(), fund_code, fund_url, e)
+            print ''
+            print 'Fund %s Data saving error:' % result['fund_code']
+            # print 'Error is %s' %e
+            # print (self.__getCurrentTime(), fund_code, fund_url, e)
+        '''
+        print (
+            self.__getCurrentTime(), 'getFundInfo:', result['fund_code'], result['fund_name'],
+            result['fund_abbr_name'],
+            result['fund_manager'], result['funder'], result['establish_date'], result['establish_scale'],
+            result['benchmark']
+            # ,result['issue_date'],result['asset_value'],result['asset_value_date'], result['unit'],result['unit_date'],result['fund_trustee']
+            # ,result['total_div'],result['mg_fee'],result['trust_fee'], result['sale_fee'], result['buy_fee'],result['buy_fee2'],result['underlying']
+        )
+            '''
 
-        try:
-            print (
-                self.__getCurrentTime(), 'getFundInfo:', result['fund_code'], result['fund_name'],
-                result['fund_abbr_name'],
-                result['fund_manager'], result['funder'], result['establish_date'], result['establish_scale'],
-                result['benchmark']
-                # ,result['issue_date'],result['asset_value'],result['asset_value_date'], result['unit'],result['unit_date'],result['fund_trustee']
-                # ,result['total_div'],result['mg_fee'],result['trust_fee'], result['sale_fee'], result['buy_fee'],result['buy_fee2'],result['underlying']
-            )
-        except  Exception as e:
-            print (self.__getCurrentTime(), fund_code, fund_url, e)
-        # '''
         return result
 
     def __baseInforCleaning(self, base_infor):
-        base_infor['mgt_fee'] = self.__eliminateEmbrace(base_infor['mgt_fee'])
-        base_infor['trust_fee'] = self.__eliminateEmbrace(base_infor['trust_fee'])
-        base_infor['buy_fee'] = self.__eliminateEmbrace(base_infor['buy_fee'])
-        base_infor['buy_fee2'] = self.__eliminateEmbrace(base_infor['buy_fee2'])
-        base_infor['sale_fee'] = self.__eliminateEmbrace(base_infor['sale_fee'])
+        try:
+            # Elimite unneeded parentheses from data and retrun str only
+            # print 'Parentheses'
+            base_infor['mgt_fee'] = self.__eliminateParenthes(base_infor['mgt_fee'])
+            base_infor['trust_fee'] = self.__eliminateParenthes(base_infor['trust_fee'])
+            base_infor['buy_fee'] = self.__eliminateParenthes(base_infor['buy_fee'])
+            base_infor['buy_fee2'] = self.__eliminateParenthes(base_infor['buy_fee2'])
+            base_infor['sale_fee'] = self.__eliminateParenthes(base_infor['sale_fee'])
+            base_infor['total_div'] = filter(str.isdigit, self.__eliminateParenthes(base_infor['total_div']))
+
+            # print 'scale'
+            # Change scales data into float
+            base_infor['establish_scale'] = self.__scaleToFloat(base_infor['establish_scale'])
+            base_infor['asset_value'] = self.__scaleToFloat(base_infor['asset_value'])
+            base_infor['units'] = self.__scaleToFloat(base_infor['units'])
+
+            # print 'date'
+            # Change Chinese date str into datetime
+            base_infor['units_date'] = self.__dateChtoEng(base_infor['units_date'])
+            base_infor['asset_value_date'] = self.__dateChtoEng(base_infor['asset_value_date'])
+            base_infor['issue_date'] = self.__dateChtoEng(base_infor['issue_date'])
+            base_infor['establish_date'] = self.__dateChtoEng(base_infor['establish_date'])
+
+            # print 'fee'
+            # Change str percent fee into float
+            base_infor['mgt_fee'] = self.__percentToFloat(base_infor['mgt_fee'])
+            base_infor['trust_fee'] = self.__percentToFloat(base_infor['trust_fee'])
+            base_infor['buy_fee'] = self.__percentToFloat(base_infor['buy_fee'])
+            base_infor['buy_fee2'] = self.__percentToFloat(base_infor['buy_fee2'])
+            base_infor['sale_fee'] = self.__percentToFloat(base_infor['sale_fee'])
+            base_infor['total_div'] = self.__percentToFloat(base_infor['total_div'])
+        except Exception as e:
+            print 'Processing fund %s with error %s' % (base_infor['fund_code'], e)
         return base_infor
 
-    def __eliminateEmbrace(self, data):
+    def __eliminateParenthes(self, data):
         pos = data.find('%')
         data = data[0:pos].encode('utf-8')
+        return data
+
+    def __percentToFloat(self, data):
         if data.find('-') != -1:
             data = 0.0
         else:
             data = float(data) / 100
         return data
+
+    def __scaleToFloat(self, data):
+        if data.find('-') != -1:
+            data = 'null'
+        else:
+            data = float(data.encode('utf-8')[0:-6])
+            return data
+
+    def __dateChtoEng(self, data):
+        if data is not None:
+            datestr = filter(str.isdigit, data.encode('utf-8'))
+            if len(datestr) == 8:
+                y = int(datestr[0:4])
+                m = int(datestr[4:6])
+                d = int(datestr[6:8])
+                return datetime.datetime(y, m, d)
+
 
     def __getFundManagerInfor(self, fund_code=None, quote_time=None, func=None):
         pass
@@ -383,8 +444,13 @@ class FundSpider():
         pass
 
     def getFundInforFromWeb(self, fund_code=None, func=None, quote_time=None, infor=None):
-        # fund_list = self.__getFundCodes()
-        self.__getFundBaseInfor(fund_code='005779')
+        # self.__getFundBaseInfor('486001')
+        # '''
+        fund_list = self.__getFundCodes()
+        for i in range(len(fund_list)):
+            # fund_code=fund_list[i][0]
+            self.__getFundBaseInfor(fund_list[i][0])
+        #'''
 
 def main():
     fspider = FundSpider()
