@@ -399,7 +399,10 @@ class FundSpider():
         if data.find('-') != -1:
             data = 0.0
         else:
-            data = float(data) / 100
+            try:
+                data = float(data) / 100
+            except:
+                data = None
         return data
 
     def __scaleToFloat(self, data):
@@ -420,7 +423,60 @@ class FundSpider():
 
 
     def __getFundManagerInfor(self, fund_code=None, quote_time=None, func=None):
-        pass
+        '''''
+                获取基金经理数据。 基金投资分析关键在投资经理，后续在完善
+
+                :param fund_code:
+                :return:
+                '''
+        fund_url = 'http://fund.eastmoney.com/f10/jjjl_' + fund_code + '.html'
+        res = self.__getURL(fund_url)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        parameters = []
+        #Find Fund Manager basic Infor
+        jl_intro = soup.find(attrs={'class':'jl_intro'})
+        a = jl_intro.findAll('a')
+        a[1].encode('utf-8')
+        manager_code = a[1]['href'].strip('http://fund.eastmoney.com/manager/.html')
+        manager_name = a[1].text
+
+        # Find Fund Manager Records
+        jl_office = soup.find(attrs={'class': 'jl_office'})
+        jl_records = jl_office.findAll('tr')
+        for tr in jl_records[1:(len(jl_records)-1)]:
+            td = tr.find_all('td')
+            result = {}
+            try:
+                result['fund_code'] = fund_code
+                result['fund_type'] = td[2].getText().strip().encode('utf-8')
+                result['manager_code'] = manager_code
+                result['manager_name'] = manager_name
+                result['start_date'] = td[3].getText().strip()
+                result['end_date'] = td[4].getText().strip()
+                result['period_days'] = td[5].getText().strip().encode('utf-8')
+                result['return_rate'] = td[6].getText().strip().encode('utf-8')
+                result['class_average'] = td[7].getText().strip().encode('utf-8')
+                result['class_rank'] = td[8].getText().strip().encode('utf-8')
+                result = self.__managerInforCleaning(result)
+                parameters.append(result)
+            except  Exception as e:
+                print ('getFundManagers1', fund_code, fund_url, e)
+
+        try:
+            #mySQL.insertData('fund_managers_chg', result)
+            print parameters
+            #print ('fund_managers_chg:', result['fund_code'], result['start_date'],
+            #       result['end_date'], result['fund_manager'], result['term'], result['return_rate'])
+        except  Exception as e:
+            print ('getFundManagers2', fund_code, fund_url, e)
+
+    def __managerInforCleaning(self, result):
+        result['start_date'] = self.__dateChtoEng(result['start_date'])
+        result['end_date'] = self.__dateChtoEng(result['end_date'])
+        result['return_rate'] = self.__percentToFloat(self.__eliminateParenthes(result['return_rate']))
+        result['class_average'] = self.__percentToFloat(self.__eliminateParenthes(result['class_average']))
+
+        return result
 
     def __getFundNetValue(self, fund_code=None, quote_time=None, func=None):
         pass
@@ -444,13 +500,14 @@ class FundSpider():
         pass
 
     def getFundInforFromWeb(self, fund_code=None, func=None, quote_time=None, infor=None):
-        # self.__getFundBaseInfor('486001')
-        # '''
+        self.__getFundManagerInfor('002269')
+        #self.__getFundBaseInfor('002269')
+        '''
         fund_list = self.__getFundCodes()
         for i in range(len(fund_list)):
             # fund_code=fund_list[i][0]
             self.__getFundBaseInfor(fund_list[i][0])
-        #'''
+        '''
 
 def main():
     fspider = FundSpider()
