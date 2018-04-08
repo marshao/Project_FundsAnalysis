@@ -396,11 +396,11 @@ class FundSpider():
         return data
 
     def __percentToFloat(self, data):
-        if data.find('-') != -1:
+        if data.find('--') != -1:
             data = 0.0
         else:
             try:
-                data = float(data) / 100
+                data = round((float(data) / 100), 4)
             except:
                 data = None
         return data
@@ -429,6 +429,9 @@ class FundSpider():
                 :param fund_code:
                 :return:
                 '''
+        # Get instance of des table in db
+        tb_FundManagerHistory = self.db_server.getTable('tb_FundManagerHistory')
+
         fund_url = 'http://fund.eastmoney.com/f10/jjjl_' + fund_code + '.html'
         res = self.__getURL(fund_url)
         soup = BeautifulSoup(res.text, 'html.parser')
@@ -437,8 +440,8 @@ class FundSpider():
         jl_intro = soup.find(attrs={'class':'jl_intro'})
         a = jl_intro.findAll('a')
         a[1].encode('utf-8')
-        manager_code = a[1]['href'].strip('http://fund.eastmoney.com/manager/.html')
-        manager_name = a[1].text
+        manager_code = a[1]['href'].strip('http://fund.eastmoney.com/manager/.html').encode('utf-8')
+        manager_name = a[1].text.encode('utf-8')
 
         # Find Fund Manager Records
         jl_office = soup.find(attrs={'class': 'jl_office'})
@@ -447,7 +450,8 @@ class FundSpider():
             td = tr.find_all('td')
             result = {}
             try:
-                result['fund_code'] = fund_code
+                result['fund_code'] = td[0].getText().strip().encode('utf-8')
+                result['fund_name'] = td[1].getText().strip().encode('utf-8')
                 result['fund_type'] = td[2].getText().strip().encode('utf-8')
                 result['manager_code'] = manager_code
                 result['manager_name'] = manager_name
@@ -455,26 +459,82 @@ class FundSpider():
                 result['end_date'] = td[4].getText().strip()
                 result['period_days'] = td[5].getText().strip().encode('utf-8')
                 result['return_rate'] = td[6].getText().strip().encode('utf-8')
-                result['class_average'] = td[7].getText().strip().encode('utf-8')
-                result['class_rank'] = td[8].getText().strip().encode('utf-8')
+                result['class_average_return'] = td[7].getText().strip().encode('utf-8')
+                result['class_return_rank'] = td[8].getText().strip().encode('utf-8')
                 result = self.__managerInforCleaning(result)
                 parameters.append(result)
             except  Exception as e:
-                print ('getFundManagers1', fund_code, fund_url, e)
+                print ('getFundManagers2 Data retriving', result['fund_code'])
+                # print ('getFundManagers1', fund_code, fund_url, e)
 
         try:
             #mySQL.insertData('fund_managers_chg', result)
             print parameters
-            #print ('fund_managers_chg:', result['fund_code'], result['start_date'],
-            #       result['end_date'], result['fund_manager'], result['term'], result['return_rate'])
+            insert_stat = insert(tb_FundManagerHistory). \
+                values(fund_code=bindparam('fund_code'),
+                       fund_name=bindparam('fund_name'),
+                       manager_code=bindparam('manager_code'),
+                       manager_name=bindparam('manager_name'),
+                       start_date=bindparam('start_date'),
+                       end_date=bindparam('end_date'),
+                       period_days=bindparam('period_days'),
+                       return_rate=bindparam('return_rate'),
+                       class_average_return=bindparam('class_average_return'),
+                       class_return_rank=bindparam('class_return_rank'),
+                       class_return_rank_percent=bindparam('class_return_rank_percent'),
+                       class_funds_count=bindparam('class_funds_count')
+                       )
+
+            upsert_stat = insert_stat.on_duplicate_key_update(
+                start_date=insert_stat.inserted.start_date,
+                end_date=insert_stat.inserted.end_date,
+                period_days=insert_stat.inserted.period_days,
+                return_rate=insert_stat.inserted.return_rate,
+                class_average_return=insert_stat.inserted.class_average_return,
+                class_return_rank=insert_stat.inserted.class_return_rank,
+                class_return_rank_percent=insert_stat.inserted.class_return_rank_percent,
+                class_funds_count=insert_stat.inserted.class_funds_count
+            )
+
+            # stat = [upsert_stat, upsert_stat]
+            self.db_server.processData(func='upsert', sql_script=upsert_stat, parameter=parameters)
+
         except  Exception as e:
-            print ('getFundManagers2', fund_code, fund_url, e)
+            print ('getFundManagers2 DB Saving', result['fund_code'])
+            #print ('getFundManagers2', result['fund_code'], e)
 
     def __managerInforCleaning(self, result):
-        result['start_date'] = self.__dateChtoEng(result['start_date'])
-        result['end_date'] = self.__dateChtoEng(result['end_date'])
-        result['return_rate'] = self.__percentToFloat(self.__eliminateParenthes(result['return_rate']))
-        result['class_average'] = self.__percentToFloat(self.__eliminateParenthes(result['class_average']))
+        try:
+            result['start_date'] = self.__dateChtoEng(result['start_date'])
+            result['end_date'] = self.__dateChtoEng(result['end_date'])
+            result['return_rate'] = self.__percentToFloat(self.__eliminateParenthes(result['return_rate']))
+            result['class_average_return'] = self.__percentToFloat(
+                self.__eliminateParenthes(result['class_average_return']))
+            split = result['class_return_rank'].find('|')
+            if split == -1:
+                result['class_return_rank'] = None
+                result['class_return_rank_percent'] = None
+                result['class_funds_count'] = None
+            else:
+                rank = int(result['class_return_rank'][0:split])
+                class_total = int(result['class_return_rank'][split + 1:])
+                percent = round((rank * 1.0) / (class_total * 1.0), 2)
+                result['class_return_rank'] = rank
+                result['class_return_rank_percent'] = percent
+                result['class_funds_count'] = class_total
+            y = result['period_days'].find('\xe5\xb9\xb4')
+            if y != -1:
+                year = int(result['period_days'][:y])
+                day = int(result['period_days'][y + 6:-3])
+                result['period_days'] = 365 * year + day
+            else:
+                year = 0
+                day = int(result['period_days'][:-3])
+                result['period_days'] = day
+
+        except Exception as e:
+            print 'Manager history cleaning error with exception %s' % result['fund_code']
+            #print 'Manager history cleaning error with exception %s'%e
 
         return result
 
@@ -500,14 +560,15 @@ class FundSpider():
         pass
 
     def getFundInforFromWeb(self, fund_code=None, func=None, quote_time=None, infor=None):
-        self.__getFundManagerInfor('002269')
+        #self.__getFundManagerInfor('002269')
         #self.__getFundBaseInfor('002269')
-        '''
+        #'''
         fund_list = self.__getFundCodes()
         for i in range(len(fund_list)):
             # fund_code=fund_list[i][0]
-            self.__getFundBaseInfor(fund_list[i][0])
-        '''
+            # self.__getFundBaseInfor(fund_list[i][0])
+            self.__getFundManagerInfor(fund_list[i][0])
+            #'''
 
 def main():
     fspider = FundSpider()
