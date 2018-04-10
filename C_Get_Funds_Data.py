@@ -69,6 +69,40 @@ class FundSpider():
                 return self.__getURL(url, tries_num_p, sleep_time_p, time_out_p, max_retry)
         return res
 
+    def __getURL_NV(self, url, params, header, tries_num=5, sleep_time=0.1, time_out=10,max_retry = 5):
+        '''''
+            get函数，主要是为了实现网络中断后自动重连，同时为了兼容各种网站不同的反爬策略及，通过sleep时间和timeout动态调整来测试合适的网络连接参数；
+            通过isproxy 来控制是否使用代理，以支持一些在内网办公的同学
+            :param url:
+            :param tries_num:  重试次数
+            :param sleep_time: 休眠时间
+            :param time_out: 连接超时参数
+            :param max_retry: 最大重试次数，仅仅是为了递归使用
+            :return: response
+            '''
+
+        sleep_time_p = sleep_time
+        time_out_p = time_out
+        tries_num_p = tries_num
+        try:
+            res = requests.Session()
+            if self.isproxy == 1:
+                res = requests.get(url, headers=header, params=params, timeout=time_out, proxies=self.proxy)
+            else:
+                res = requests.get(url, headers=header, params=params, timeout=time_out)
+            res.raise_for_status()  # 如果响应状态码不是 200，就主动抛出异常
+        except requests.RequestException as e:
+            sleep_time_p = sleep_time_p + 10
+            time_out_p = time_out_p + 10
+            tries_num_p = tries_num_p - 1
+            # 设置重试次数，最大timeout 时间和 最长休眠时间
+            if tries_num_p > 0:
+                time.sleep(sleep_time_p)
+                print (
+                self.__getCurrentTime(), url, 'URL Connection Error: 第', max_retry - tries_num_p, u'次 Retry Connection', e)
+                return self.__getURL(url, tries_num_p, sleep_time_p, time_out_p, max_retry)
+        return res
+
     def __getHeader(self):
         '''''
             随机生成User-Agent
@@ -436,40 +470,46 @@ class FundSpider():
         res = self.__getURL(fund_url)
         soup = BeautifulSoup(res.text, 'html.parser')
         parameters = []
-        #Find Fund Manager basic Infor
-        jl_intro = soup.find(attrs={'class':'jl_intro'})
-        a = jl_intro.findAll('a')
-        a[1].encode('utf-8')
-        manager_code = a[1]['href'].strip('http://fund.eastmoney.com/manager/.html').encode('utf-8')
-        manager_name = a[1].text.encode('utf-8')
 
+        #Find Fund Manager basic Infor
+        jl_intro = soup.findAll(attrs={'class':'jl_intro'})
         # Find Fund Manager Records
-        jl_office = soup.find(attrs={'class': 'jl_office'})
-        jl_records = jl_office.findAll('tr')
-        for tr in jl_records[1:(len(jl_records)-1)]:
-            td = tr.find_all('td')
-            result = {}
-            try:
-                result['fund_code'] = td[0].getText().strip().encode('utf-8')
-                result['fund_name'] = td[1].getText().strip().encode('utf-8')
-                result['fund_type'] = td[2].getText().strip().encode('utf-8')
-                result['manager_code'] = manager_code
-                result['manager_name'] = manager_name
-                result['start_date'] = td[3].getText().strip()
-                result['end_date'] = td[4].getText().strip()
-                result['period_days'] = td[5].getText().strip().encode('utf-8')
-                result['return_rate'] = td[6].getText().strip().encode('utf-8')
-                result['class_average_return'] = td[7].getText().strip().encode('utf-8')
-                result['class_return_rank'] = td[8].getText().strip().encode('utf-8')
-                result = self.__managerInforCleaning(result)
-                parameters.append(result)
-            except  Exception as e:
-                print ('getFundManagers2 Data retriving', result['fund_code'])
-                # print ('getFundManagers1', fund_code, fund_url, e)
+        jl_office = soup.findAll(attrs={'class': 'jl_office'})
+
+        if len(jl_intro) != len(jl_office):
+            print "JL intros numbers does not match JL office numbers in %s"%fund_code
+            return
+        for i in range(0, len(jl_intro)):
+            a = jl_intro[i].findAll('a')
+            a[1].encode('utf-8')
+            manager_code = a[1]['href'].strip('http://fund.eastmoney.com/manager/.html').encode('utf-8')
+            manager_name = a[1].text.encode('utf-8')
+
+            jl_records = jl_office[i].findAll('tr')
+            for tr in jl_records[1:(len(jl_records))]:
+                td = tr.find_all('td')
+                result = {}
+                try:
+                    result['fund_code'] = td[0].getText().strip().encode('utf-8')
+                    result['fund_name'] = td[1].getText().strip().encode('utf-8')
+                    result['fund_type'] = td[2].getText().strip().encode('utf-8')
+                    result['manager_code'] = manager_code
+                    result['manager_name'] = manager_name
+                    result['start_date'] = td[3].getText().strip()
+                    result['end_date'] = td[4].getText().strip()
+                    result['period_days'] = td[5].getText().strip().encode('utf-8')
+                    result['return_rate'] = td[6].getText().strip().encode('utf-8')
+                    result['class_average_return'] = td[7].getText().strip().encode('utf-8')
+                    result['class_return_rank'] = td[8].getText().strip().encode('utf-8')
+                    result = self.__managerInforCleaning(result)
+                    parameters.append(result)
+                except  Exception as e:
+                    print ('getFundManagers2 Data retriving', fund_code)
+                    # print ('getFundManagers1', fund_code, fund_url, e)
 
         try:
             #mySQL.insertData('fund_managers_chg', result)
-            print parameters
+            #print parameters
             insert_stat = insert(tb_FundManagerHistory). \
                 values(fund_code=bindparam('fund_code'),
                        fund_name=bindparam('fund_name'),
@@ -500,37 +540,51 @@ class FundSpider():
             self.db_server.processData(func='upsert', sql_script=upsert_stat, parameter=parameters)
 
         except  Exception as e:
-            print ('getFundManagers2 DB Saving', result['fund_code'])
+            print ('getFundManagers2 DB Saving', fund_code)
             #print ('getFundManagers2', result['fund_code'], e)
 
     def __managerInforCleaning(self, result):
         try:
+            #print result
             result['start_date'] = self.__dateChtoEng(result['start_date'])
             result['end_date'] = self.__dateChtoEng(result['end_date'])
-            result['return_rate'] = self.__percentToFloat(self.__eliminateParenthes(result['return_rate']))
-            result['class_average_return'] = self.__percentToFloat(
-                self.__eliminateParenthes(result['class_average_return']))
+
+            if result['return_rate'] != '':
+                result['return_rate'] = self.__percentToFloat(self.__eliminateParenthes(result['return_rate']))
+            else:
+                result['return_rate'] = None
+            if result['class_average_return'] != '':
+                result['class_average_return'] = self.__percentToFloat(self.__eliminateParenthes(result['class_average_return']))
+            else:
+                result['class_average_return'] = None
+
+            #Process class rerurn
             split = result['class_return_rank'].find('|')
-            if split == -1:
+            empty = result['class_return_rank'].find('-')
+            if split == -1 or empty != -1:
                 result['class_return_rank'] = None
                 result['class_return_rank_percent'] = None
                 result['class_funds_count'] = None
-            else:
+            else :
                 rank = int(result['class_return_rank'][0:split])
                 class_total = int(result['class_return_rank'][split + 1:])
                 percent = round((rank * 1.0) / (class_total * 1.0), 2)
                 result['class_return_rank'] = rank
                 result['class_return_rank_percent'] = percent
                 result['class_funds_count'] = class_total
+
+            # Process period days
             y = result['period_days'].find('\xe5\xb9\xb4')
             if y != -1:
                 year = int(result['period_days'][:y])
                 day = int(result['period_days'][y + 6:-3])
                 result['period_days'] = 365 * year + day
-            else:
+            elif result['period_days'].find('\xe5\xa4\xa9') != -1:
                 year = 0
                 day = int(result['period_days'][:-3])
                 result['period_days'] = day
+            else:
+                result['period_days'] = None
 
         except Exception as e:
             print 'Manager history cleaning error with exception %s' % result['fund_code']
@@ -539,7 +593,88 @@ class FundSpider():
         return result
 
     def __getFundNetValue(self, fund_code=None, quote_time=None, func=None):
-        pass
+        '''''
+                获取基金净值数据，因为基金列表中是所有基金代码，一般净值型基金和货币基金数据稍有差异，下面根据数据表格长度判断是一般基金还是货币基金，分别入库
+                :param fund_code:
+                :return:
+                '''
+        pageSize = '1'
+        fund_url = 'http://api.fund.eastmoney.com/f10/lsjz'
+        header = {'Referer':'http://fund.eastmoney.com/f10/jjjz_%s.html'%fund_code,
+                  'connnection':'keep-alive',
+                  }
+
+        parameters = (
+            ('\n\ncallback','jQuery18307681534724135337_1523257055977'),
+            ('fundCode',fund_code),
+            ('pageIndex','1'),
+            ('pageSize',pageSize),
+            ('startDate',''),
+            ('endDate',''),
+            ('_','152332241\n\n6468'),
+        )
+        try:
+            # http://fund.eastmoney.com/f10/F10DataApi.aspx?type=lsjz&code=000001&page=1&per=1
+            '''''
+            #寿险获取单个基金的第一页数据，里面返回的apidata 接口中包含了记录数、分页及数据文件等
+            #这里暂按照字符串解析方式获取，既然是标准API接口，应该可以通过更高效的方式批量获取全部净值数据，待后续研究。这里传入基金代码、分页页码和每页的记录数。先简单查询一次获取总的记录数，再一次性获取所有历史净值
+            首次初始化完成后，如果后续每天更新或者定期更新，只要修改下每页返回的记录参数即可
+           '''
+            #fund_url = 'http://fund.eastmoney.com/f10/F10DataApi.aspx?type=lsjz&code=' + fund_code + '&page=1&per=1'
+            res = self.__getURL_NV(url=fund_url, header=header, params=parameters)
+            # 获取历史净值的总记录数
+            pageSize = res.text[(res.text.find('"TotalCount"')+13):(res.text.find('"Expansion"')-1)]
+            parameters = (
+                ('\n\ncallback', 'jQuery18307681534724135337_1523257055977'),
+                ('fundCode', fund_code),
+                ('pageIndex', '1'),
+                ('pageSize', pageSize),
+                ('startDate', ''),
+                ('endDate', ''),
+                ('_', '152332241\n\n6468'),
+            )
+        except  Exception as e:
+            print ( 'getFundNavRecordsCount', fund_code,  e)
+
+        try:
+            # 根据基金代码和总记录数，一次返回所有历史净值
+            #fund_nav = 'http://fund.eastmoney.com/f10/F10DataApi.aspx?type=lsjz&code=' + fund_code + '&page=1&per=' + records
+            res = self.__getURL_NV(url=fund_url, header=header, params=parameters)
+            records = res.text[(res.text.find('"FSRQ"')):(res.text.rfind('"FundType"')-3)].encode('utf-8')
+            records = records.split('},{')
+        except  Exception as e:
+            print ('getFundNVFullList', fund_code, e)
+
+        sql_param = []
+        try:
+            for item in records:
+                result = {}
+                units = item.split(',')
+                result['fund_code'] = fund_code
+                result['quote_date'] = self.__dateChtoEng(units[0][(units[0].find(':')+2):-1].replace('-',''))
+                result['unit_net_value'] = float(units[1][(units[1].find(':')+2):-1])
+                result['cum_net_value'] = float(units[2][(units[2].find(':') + 2):-1])
+
+                result['daily_increase_rate'] = units[6][(units[6].find(':') + 2):-1]
+                if result['daily_increase_rate'] == '':
+                    result['daily_increase_rate'] = 0.0
+                else:
+                    result['daily_increase_rate'] = float(result['daily_increase_rate'])/100
+
+                result['div_record'] = units[12][(units[12].find(':') + 2):-1]
+                sql_param.append(result)
+            print sql_param
+        except  Exception as e:
+                    print ( 'getFundNavRecordsDetail', fund_code, e)
+        '''
+        try:
+            #mySQL.insertData('fund_nav', result)
+
+        except  Exception as e:
+            print ( 'getFundNav4', fund_code, fund_url, e)
+                # 如果是货币基金，获取万份收益和7日年化利率
+        '''
+        return
 
     def __getFundDivident(self, fund_code=None, quote_time=None, func=None):
         pass
@@ -560,7 +695,9 @@ class FundSpider():
         pass
 
     def getFundInforFromWeb(self, fund_code=None, func=None, quote_time=None, infor=None):
-        #self.__getFundManagerInfor('002269')
+        #self.__getFundManagerInfor('570006')
+        #self.__getFundManagerInfor('070018')
+        #self.__getFundNetValue('070018')
         #self.__getFundBaseInfor('002269')
         #'''
         fund_list = self.__getFundCodes()
