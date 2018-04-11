@@ -455,6 +455,12 @@ class FundSpider():
                 d = int(datestr[6:8])
                 return datetime.datetime(y, m, d)
 
+    def __strToFloat(self, data):
+        if data != '':
+            float(data)
+        else:
+            data = None
+        return data
 
     def __getFundManagerInfor(self, fund_code=None, quote_time=None, func=None):
         '''''
@@ -598,6 +604,9 @@ class FundSpider():
                 :param fund_code:
                 :return:
                 '''
+        # Get instance of des table in db
+        tb_FundNetValue = self.db_server.getTable('tb_FundNetValue')
+
         pageSize = '1'
         fund_url = 'http://api.fund.eastmoney.com/f10/lsjz'
         header = {'Referer':'http://fund.eastmoney.com/f10/jjjz_%s.html'%fund_code,
@@ -634,46 +643,71 @@ class FundSpider():
                 ('_', '152332241\n\n6468'),
             )
         except  Exception as e:
-            print ( 'getFundNavRecordsCount', fund_code,  e)
+            # print ( 'getFundNavRecordsCount', fund_code,  e)
+            print ('getFundNavRecordsCount', fund_code)
 
         try:
             # 根据基金代码和总记录数，一次返回所有历史净值
             #fund_nav = 'http://fund.eastmoney.com/f10/F10DataApi.aspx?type=lsjz&code=' + fund_code + '&page=1&per=' + records
             res = self.__getURL_NV(url=fund_url, header=header, params=parameters)
             records = res.text[(res.text.find('"FSRQ"')):(res.text.rfind('"FundType"')-3)].encode('utf-8')
+            records = records.replace('"', '')
             records = records.split('},{')
         except  Exception as e:
-            print ('getFundNVFullList', fund_code, e)
+            # print ('getFundNVFullList', fund_code, e)
+            print ('getFundNVFullList', fund_code)
 
         sql_param = []
         try:
             for item in records:
+                # build two dictionaries to break and convert data
                 result = {}
-                units = item.split(',')
+                temp = {}
+                for unit in item.split(','):
+                    parts = unit.split(':')
+                    temp[parts[0]] = parts[1]
+
                 result['fund_code'] = fund_code
-                result['quote_date'] = self.__dateChtoEng(units[0][(units[0].find(':')+2):-1].replace('-',''))
-                result['unit_net_value'] = float(units[1][(units[1].find(':')+2):-1])
-                result['cum_net_value'] = float(units[2][(units[2].find(':') + 2):-1])
+                result['quote_date'] = self.__dateChtoEng(temp['FSRQ'].replace('-', ''))
+                result['unit_net_value'] = self.__strToFloat(temp['DWJZ'])
+                result['cum_net_value'] = self.__strToFloat(temp['LJJZ'])
+                result['div_record'] = temp['FHSP']
 
-                result['daily_increase_rate'] = units[6][(units[6].find(':') + 2):-1]
-                if result['daily_increase_rate'] == '':
-                    result['daily_increase_rate'] = 0.0
+                if temp['JZZZL'] == '':
+                    result['daily_chg_rate'] = None
                 else:
-                    result['daily_increase_rate'] = float(result['daily_increase_rate'])/100
+                    result['daily_chg_rate'] = float(temp['JZZZL']) / 100
 
-                result['div_record'] = units[12][(units[12].find(':') + 2):-1]
                 sql_param.append(result)
-            print sql_param
+                #print sql_param
         except  Exception as e:
-                    print ( 'getFundNavRecordsDetail', fund_code, e)
-        '''
+            # print ( 'getFundNavRecordsDetail', fund_code, e)
+            print ('getFundNavRecordsDetail', fund_code)
+
         try:
-            #mySQL.insertData('fund_nav', result)
+            insert_stat = insert(tb_FundNetValue).prefix_with('IGNORE'). \
+                values(fund_code=bindparam('fund_code'),
+                       quote_date=bindparam('quote_date'),
+                       unit_net_value=bindparam('unit_net_value'),
+                       cum_net_value=bindparam('cum_net_value'),
+                       daily_chg_rate=bindparam('daily_chg_rate')
+                       )
+
+            upsert_stat = insert_stat.on_duplicate_key_update(
+                unit_net_value=insert_stat.inserted.unit_net_value,
+                cum_net_value=insert_stat.inserted.cum_net_value,
+                daily_chg_rate=insert_stat.inserted.daily_chg_rate
+            )
+
+            # stat = [upsert_stat, upsert_stat]
+
+            self.db_server.processData(func='insert', sql_script=insert_stat, parameter=sql_param)
 
         except  Exception as e:
-            print ( 'getFundNav4', fund_code, fund_url, e)
+            # print ( 'getFundNavSaving', fund_code, e)
+            print ('getFundNavSaving', fund_code)
                 # 如果是货币基金，获取万份收益和7日年化利率
-        '''
+
         return
 
     def __getFundDivident(self, fund_code=None, quote_time=None, func=None):
@@ -697,14 +731,15 @@ class FundSpider():
     def getFundInforFromWeb(self, fund_code=None, func=None, quote_time=None, infor=None):
         #self.__getFundManagerInfor('570006')
         #self.__getFundManagerInfor('070018')
-        #self.__getFundNetValue('070018')
+        #self.__getFundNetValue('004477')
         #self.__getFundBaseInfor('002269')
         #'''
         fund_list = self.__getFundCodes()
         for i in range(len(fund_list)):
-            # fund_code=fund_list[i][0]
-            # self.__getFundBaseInfor(fund_list[i][0])
-            self.__getFundManagerInfor(fund_list[i][0])
+            fund_code = fund_list[i][0]
+            self.__getFundNetValue(fund_code)
+            # self.__getFundBaseInfor(fund_code)
+            #self.__getFundManagerInfor(fund_code)
             #'''
 
 def main():
