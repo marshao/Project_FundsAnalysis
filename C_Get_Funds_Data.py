@@ -17,7 +17,6 @@ from bs4 import BeautifulSoup
 import time, datetime
 import random
 import pandas as pd
-import re
 import C_MySQL_Server as db
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy import bindparam
@@ -681,11 +680,19 @@ class FundSpider():
                 sql_param.append(result)
                 #print sql_param
         except  Exception as e:
-            # print ( 'getFundNavRecordsDetail', fund_code, e)
-            print ('getFundNavRecordsDetail', fund_code)
+            print ('getFundNavRecordsDetail', fund_code, e)
+            # print ('getFundNavRecordsDetail', fund_code)
 
         try:
-            insert_stat = insert(tb_FundNetValue).prefix_with('IGNORE'). \
+            insert_ignore_stat = insert(tb_FundNetValue).prefix_with('IGNORE'). \
+                values(fund_code=bindparam('fund_code'),
+                       quote_date=bindparam('quote_date'),
+                       unit_net_value=bindparam('unit_net_value'),
+                       cum_net_value=bindparam('cum_net_value'),
+                       daily_chg_rate=bindparam('daily_chg_rate')
+                       )
+
+            insert_stat = insert(tb_FundNetValue). \
                 values(fund_code=bindparam('fund_code'),
                        quote_date=bindparam('quote_date'),
                        unit_net_value=bindparam('unit_net_value'),
@@ -701,11 +708,11 @@ class FundSpider():
 
             # stat = [upsert_stat, upsert_stat]
 
-            self.db_server.processData(func='insert', sql_script=insert_stat, parameter=sql_param)
+            self.db_server.processData(func='upsert', sql_script=upsert_stat, parameter=sql_param)
 
         except  Exception as e:
-            # print ( 'getFundNavSaving', fund_code, e)
-            print ('getFundNavSaving', fund_code)
+            print ('getFundNavSaving Error', fund_code, sql_param, e)
+            #print ('getFundNavSaving Error', fund_code)
                 # 如果是货币基金，获取万份收益和7日年化利率
 
         return
@@ -731,13 +738,13 @@ class FundSpider():
     def getFundInforFromWeb(self, fund_code=None, func=None, quote_time=None, infor=None):
         #self.__getFundManagerInfor('570006')
         #self.__getFundManagerInfor('070018')
-        #self.__getFundNetValue('004477')
+        self.__getFundNetValue('003563')
         #self.__getFundBaseInfor('002269')
-        #'''
+        '''
         fund_list = self.__getFundCodes()
         for i in range(len(fund_list)):
             fund_code = fund_list[i][0]
-            self.__getFundNetValue(fund_code)
+            # self.__getFundNetValue(fund_code)
             # self.__getFundBaseInfor(fund_code)
             #self.__getFundManagerInfor(fund_code)
             #'''
