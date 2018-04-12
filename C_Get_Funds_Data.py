@@ -760,8 +760,8 @@ class FundSpider():
         #self.__getFundManagerInfor('570006')
         #self.__getFundManagerInfor('070018')
         # self.__getFundNetValue('003563')
-        # self.__getFundBaseInfor('003503')
-        #'''
+        self.__getFundBaseInfor('005488')
+        '''
         fund_list = self.__getFundCodes()
         for i in range(len(fund_list)):
             fund_code = fund_list[i][0]
