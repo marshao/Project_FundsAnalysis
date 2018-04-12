@@ -13,6 +13,7 @@
 #############################################################################
 
 import requests
+import re
 from bs4 import BeautifulSoup
 import time, datetime
 import random
@@ -274,7 +275,7 @@ class FundSpider():
         result = {}
         res = self.__getURL(fund_url)
         soup = BeautifulSoup(res.text, 'html.parser')
-
+        # print soup
         try:
             result['fund_code'] = fund_code
             result['fund_name'] = soup.find_all(text=u"基金全称")[0].next_element.text.strip()
@@ -297,14 +298,20 @@ class FundSpider():
                     u'（截止至：）')
             else:
                 result['units_date'] = None
-            # result['units_date'] = soup.find_all(text=u"份额规模")[0].next_element.text.strip().split(u'（')[1].strip(u'（截止至：）')
-            #result['asset_value_date'] = soup.find_all(text=u"资产规模")[0].next_element.text.split(u'（')[1].split(u'）')[0].strip(u'截止至：')
-            result['fund_manager'] = soup.find_all(text=u"基金管理人")[0].next_element.text.strip()
+
+            result['fund_company'] = soup.find_all(text=u"基金管理人")[0].next_element.text.strip()
             result['fund_trustee'] = soup.find_all(text=u"基金托管人")[0].next_element.text.strip()
-            result['funder'] = soup.find_all(text=u"基金经理人")[0].next_element.text.strip()
+
+            # Process Fund Manager Information
+            result['fund_manager_name_1'] = soup.find_all(text=u"基金经理人")[0].next_element
+            result['fund_manager_code_1'] = None
+            result['fund_manager_code_2'] = None
+            result['fund_manager_name_2'] = None
+            result['fund_manager_code_3'] = None
+            result['fund_manager_name_3'] = None
+
             result['total_div'] = soup.find_all(text=u"成立来分红")[0].next_element.text.strip()
             result['mgt_fee'] = soup.find_all(text=u"管理费率")[0].next_element.text.strip()
-
             result['trust_fee'] = soup.find_all(text=u"托管费率")[0].next_element.text.strip()
             result['sale_fee'] = soup.find_all(text=u"销售服务费率")[0].next_element.text.strip()
             result['buy_fee'] = soup.find_all(text=u"最高认购费率")[0].next_element.text.strip()
@@ -315,8 +322,7 @@ class FundSpider():
         except  Exception as e:
             print ''
             print 'Fund %s Data Cleaning error:' % result['fund_code']
-            # print 'Error is %s' %e
-            #print (self.__getCurrentTime(), fund_code, fund_url, e)
+
         try:
             tb_FundInfo = self.db_server.getTable('tb_FundInfo')
             insert_stat = insert(tb_FundInfo). \
@@ -331,9 +337,14 @@ class FundSpider():
                        asset_value_date=bindparam('asset_value_date'),
                        units=bindparam('units'),
                        units_date=bindparam('units_date'),
-                       fund_manager=bindparam('fund_manager'),
+                       fund_manager_name_1=bindparam('fund_manager_name_1'),
+                       fund_manager_name_2=bindparam('fund_manager_name_2'),
+                       fund_manager_name_3=bindparam('fund_manager_name_3'),
+                       fund_manager_code_1=bindparam('fund_manager_code_1'),
+                       fund_manager_code_2=bindparam('fund_manager_code_2'),
+                       fund_manager_code_3=bindparam('fund_manager_code_3'),
                        fund_trustee=bindparam('fund_trustee'),
-                       funder=bindparam('funder'),
+                       fund_company=bindparam('fund_company'),
                        total_div=bindparam('total_div'),
                        mgt_fee=bindparam('mgt_fee'),
                        trust_fee=bindparam('trust_fee'),
@@ -355,9 +366,14 @@ class FundSpider():
                 asset_value_date=insert_stat.inserted.asset_value_date,
                 units=insert_stat.inserted.units,
                 units_date=insert_stat.inserted.units_date,
-                fund_manager=insert_stat.inserted.fund_manager,
+                fund_manager_name_1=insert_stat.inserted.fund_manager_name_1,
+                fund_manager_name_2=insert_stat.inserted.fund_manager_name_2,
+                fund_manager_name_3=insert_stat.inserted.fund_manager_name_3,
+                fund_manager_code_1=insert_stat.inserted.fund_manager_code_1,
+                fund_manager_code_2=insert_stat.inserted.fund_manager_code_2,
+                fund_manager_code_3=insert_stat.inserted.fund_manager_code_3,
                 fund_trustee=insert_stat.inserted.fund_trustee,
-                funder=insert_stat.inserted.funder,
+                fund_company=insert_stat.inserted.fund_company,
                 total_div=insert_stat.inserted.total_div,
                 mgt_fee=insert_stat.inserted.mgt_fee,
                 trust_fee=insert_stat.inserted.trust_fee,
@@ -372,18 +388,6 @@ class FundSpider():
         except  Exception as e:
             print ''
             print 'Fund %s Data saving error:' % result['fund_code']
-            # print 'Error is %s' %e
-            # print (self.__getCurrentTime(), fund_code, fund_url, e)
-        '''
-        print (
-            self.__getCurrentTime(), 'getFundInfo:', result['fund_code'], result['fund_name'],
-            result['fund_abbr_name'],
-            result['fund_manager'], result['funder'], result['establish_date'], result['establish_scale'],
-            result['benchmark']
-            # ,result['issue_date'],result['asset_value'],result['asset_value_date'], result['unit'],result['unit_date'],result['fund_trustee']
-            # ,result['total_div'],result['mg_fee'],result['trust_fee'], result['sale_fee'], result['buy_fee'],result['buy_fee2'],result['underlying']
-        )
-            '''
 
         return result
 
@@ -419,6 +423,23 @@ class FundSpider():
             base_infor['buy_fee2'] = self.__percentToFloat(base_infor['buy_fee2'])
             base_infor['sale_fee'] = self.__percentToFloat(base_infor['sale_fee'])
             base_infor['total_div'] = self.__percentToFloat(base_infor['total_div'])
+
+            # Process Fund_manager_name and codes:
+            managers = base_infor['fund_manager_name_1'].find_all('a')
+            for i in range(0, len(managers)):
+                if i == 0:
+                    base_infor['fund_manager_code_1'] = managers[i]['href'].strip(
+                        'http://fund.eastmoney.com/manager/.html').encode('utf-8')
+                    base_infor['fund_manager_name_1'] = managers[i].text.strip().encode('utf-8')
+                if i == 1:
+                    base_infor['fund_manager_code_2'] = managers[i]['href'].strip(
+                        'http://fund.eastmoney.com/manager/.html').encode('utf-8')
+                    base_infor['fund_manager_name_2'] = managers[i].text.strip().encode('utf-8')
+                if i == 2:
+                    base_infor['fund_manager_code_3'] = managers[i]['href'].strip(
+                        'http://fund.eastmoney.com/manager/.html').encode('utf-8')
+                    base_infor['fund_manager_name_3'] = managers[i].text.strip().encode('utf-8')
+
         except Exception as e:
             print 'Processing fund %s with error %s' % (base_infor['fund_code'], e)
         return base_infor
@@ -738,14 +759,14 @@ class FundSpider():
     def getFundInforFromWeb(self, fund_code=None, func=None, quote_time=None, infor=None):
         #self.__getFundManagerInfor('570006')
         #self.__getFundManagerInfor('070018')
-        self.__getFundNetValue('003563')
-        #self.__getFundBaseInfor('002269')
-        '''
+        # self.__getFundNetValue('003563')
+        # self.__getFundBaseInfor('003503')
+        #'''
         fund_list = self.__getFundCodes()
         for i in range(len(fund_list)):
             fund_code = fund_list[i][0]
             # self.__getFundNetValue(fund_code)
-            # self.__getFundBaseInfor(fund_code)
+            self.__getFundBaseInfor(fund_code)
             #self.__getFundManagerInfor(fund_code)
             #'''
 
