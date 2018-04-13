@@ -15,13 +15,10 @@
 import C_MySQL_Server as db
 from sqlalchemy import select
 import pandas as pd
+from datetime import *
 
 class Fund():
-
-    Fund_Type = '1'
-
-
-    def __init__(self, fund_code = None, fund_name = None, start_date = None, end_date = None):
+    def __init__(self):
         db_server = db.MySQLServer()
         self.engine = db_server.getEngine()
         self.session = db_server.getSession()
@@ -30,6 +27,17 @@ class Fund():
         self.tb_FundInfo = db_server.getTable('tb_FundInfo')
         self.tb_FundList = db_server.getTable('tb_FundList')
 
+
+class FundInstance(Fund):
+    '''
+    Fund Class stands for the individual instance of each fund.
+    '''
+
+    Fund_Type = '1'
+
+
+    def __init__(self, fund_code = None, fund_name = None, start_date = None, end_date = None):
+        Fund.__init__(self)
         if fund_code is None and fund_name is None:
             print "fund_name and fund_code should not all be none "
         elif fund_code is None:
@@ -70,6 +78,7 @@ class Fund():
         # fund = self.session.query(table).filter_by(fund_code = fund_code)
         result = self.session.execute(stat).fetchall()
         return result[0][0]
+
 
     def __getFundType(self, fund_code):
         table = self.tb_FundInfo
@@ -162,11 +171,108 @@ class Fund():
         return unit_net_value_list
 
 
+class FundList(Fund):
+    '''
+    FundList is the class stands for a collection of funds those match some requirements.
+    '''
+
+    def __init__(self):
+        Fund.__init__(self)
+        self.full_list = self.__getFullList()
+        self.fund_types = self.__getFundTypes(self.full_list)
+
+    def __getFullList(self):
+        try:
+            sql_select_all_fundInfo = 'select * from tb_FundInfo'
+            sql_select_all_fundList = 'select fund_code, long_status, short_status  from tb_FundList'
+            df_fundInfo = pd.read_sql(sql=sql_select_all_fundInfo, con=self.engine)
+            df_fundList = pd.read_sql(sql=sql_select_all_fundList, con=self.engine)
+            df_result = pd.merge(df_fundList, df_fundInfo, how='inner', on=['fund_code'])
+            df_result.set_index('fund_code', inplace=True)
+            # '''
+            df_result = df_result.loc[:, ['fund_name', 'long_status', 'short_status', 'fund_type',
+                                          'issue_date', 'establish_sacle', 'asset_value', 'sale_fee', 'buy_fee',
+                                          'buy_fee2', 'mgt_fee', 'total_div', 'fund_manager_code_1',
+                                          'fund_manager_name_1',
+                                          'fund_manager_code_2', 'fund_manager_name_2']]
+        except Exception as e:
+            print ("Fund list retrieving error", e)
+
+        return df_result
+
+    def getBuyableFunds(self, fund_list=None):
+        if fund_list is None:
+            fund_list = self.full_list
+        df_result = fund_list.loc[fund_list['long_status'] == '1']
+        return df_result
+
+    def getSaleableFunds(self, fund_list=None):
+        if fund_list is None:
+            fund_list = self.full_list
+        df_result = fund_list.loc[fund_list['short_status'] == '1']
+        return df_result
+
+    def getTradeableFunds(self, fund_list=None):
+        if fund_list is None:
+            fund_list = self.full_list
+        df_result = fund_list.loc[(fund_list['short_status'] == '1') & (fund_list['long_status'] == '1')]
+        return df_result
+
+    def __getFundTypes(self, fund_list=None):
+        if fund_list is None:
+            fund_list = self.full_list
+        fund_types = {}
+        types = fund_list['fund_type'].unique()
+        for i in range(1, len(types)):
+            fund_types[str(i)] = types[i - 1]
+        return fund_types
+
+    def getFundsInType(self, df_list=None, fund_type_index=1):
+        if df_list is None:
+            df_list = self.full_list
+        type = self.fund_types[str(fund_type_index)]
+        df_result = df_list.loc[df_list['fund_type'] == type]
+        return df_result
+
+    def getFundsIssuedBeforeThan(self, df_list=None, datestr=None):
+        if df_list is None:
+            df_list = self.full_list
+        if datestr is None:
+            datestr = datetime.today()
+        elif len(datestr) == 8:
+            y = int(datestr[0:4])
+            m = int(datestr[4:6])
+            d = int(datestr[6:8])
+            datestr = datetime(y, m, d)
+        else:
+            print ("datestr need a 8 digits string in Chinese format")
+
+        df_result = df_list.loc[df_list['issue_date'] <= datestr]
+        return df_result
+
+    def getFundsIssuedLongerThan(self, df_list=None, year=None):
+        if df_list is None:
+            df_list = self.full_list
+        if year is None:
+            year = 0
+
+        current_year = datetime.today().year
+        df_result = df_list.loc[(df_list['issue_date'].apply(lambda x: x.year) - current_year) >= year]
+
+        return df_result
+
+
+
+
 def main():
-    fund = Fund(fund_code='003503')
+    #fund = FundInstance(fund_code='003503')
     # fund = Fund(fund_name= '嘉实沪港深回报混合型证券投资基金')
-    print fund.fund_name
-    print fund.getUnitNetValueList('003503')
+    fund_list = FundList()
+    funds = fund_list.getBuyableFunds()
+    print fund_list.fund_types['2']
+    # print fund_list.getFundsInType(fund_type_index=1, df_list=funds)
+    # print fund_list.getFundsIssuedBeforeThan(df_list=funds, datestr='20100101')
+    print fund_list.getFundsIssuedLongerThan(df_list=funds, year=1)
 
 
 if __name__ == "__main__":

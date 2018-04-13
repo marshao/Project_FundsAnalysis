@@ -1,0 +1,72 @@
+/usr/bin/python2.7 /home/marshao/DataMiningProjects/Project_FundsAnalysis/C_Get_Funds_Data.py
+
+Fund 001835 Data Cleaning error:
+
+Fund 001835 Data saving error:
+('[2018-04-12 10:32:11]', 'http://fund.eastmoney.com/f10/jbgk_253020.html', 'URL Connection Error: \xe7\xac\xac', 1, u'\u6b21 Retry Connection', ReadTimeout(ReadTimeoutError("HTTPConnectionPool(host='fund.eastmoney.com', port=80): Read timed out. (read timeout=10)",),))
+('[2018-04-12 10:33:34]', 'http://fund.eastmoney.com/f10/jbgk_253061.html', 'URL Connection Error: \xe7\xac\xac', 1, u'\u6b21 Retry Connection', ReadTimeout(ReadTimeoutError("HTTPConnectionPool(host='fund.eastmoney.com', port=80): Read timed out. (read timeout=10)",),))
+
+Fund 202102 Data Cleaning error:
+
+Fund 202102 Data saving error:
+
+Fund 160141 Data Cleaning error:
+
+Fund 160141 Data saving error:
+
+Fund 004022 Data Cleaning error:
+
+Fund 004022 Data saving error:
+
+Fund 004024 Data Cleaning error:
+
+Fund 004024 Data saving error:
+
+Fund 003326 Data Cleaning error:
+
+Fund 003326 Data saving error:
+
+Fund 003661 Data Cleaning error:
+
+Fund 003661 Data saving error:
+
+Fund 004255 Data Cleaning error:
+
+Fund 004255 Data saving error:
+
+Fund 004035 Data Cleaning error:
+
+Fund 004035 Data saving error:
+
+Fund 001969 Data Cleaning error:
+
+Fund 001969 Data saving error:
+
+Fund 003939 Data Cleaning error:
+
+Fund 003939 Data saving error:
+
+Fund 003072 Data Cleaning error:
+
+Fund 003072 Data saving error:
+('[2018-04-12 11:02:29]', 'http://fund.eastmoney.com/f10/jbgk_005157.html', 'URL Connection Error: \xe7\xac\xac', 1, u'\u6b21 Retry Connection', ReadTimeout(ReadTimeoutError("HTTPConnectionPool(host='fund.eastmoney.com', port=80): Read timed out. (read timeout=10)",),))
+
+Fund 005442 Data Cleaning error:
+
+Fund 005442 Data saving error:
+
+Fund 002506 Data Cleaning error:
+
+Fund 002506 Data saving error:
+
+Fund 004773 Data Cleaning error:
+
+Fund 004773 Data saving error:
+
+Fund 005488 Data Cleaning error:
+
+Fund 005488 Data saving error:
+('[2018-04-12 11:03:59]', 'http://fund.eastmoney.com/f10/jbgk_005185.html', 'URL Connection Error: \xe7\xac\xac', 1, u'\u6b21 Retry Connection', ReadTimeout(ReadTimeoutError("HTTPConnectionPool(host='fund.eastmoney.com', port=80): Read timed out. (read timeout=10)",),))
+
+Process finished with exit code 0
+
