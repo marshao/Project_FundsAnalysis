@@ -760,15 +760,20 @@ class FundSpider():
         #self.__getFundManagerInfor('570006')
         #self.__getFundManagerInfor('070018')
         # self.__getFundNetValue('003563')
-        self.__getFundBaseInfor('005488')
-        '''
+        #self.__getFundBaseInfor('005488')
+        #'''
         fund_list = self.__getFundCodes()
+        count = len(fund_list)
         for i in range(len(fund_list)):
             fund_code = fund_list[i][0]
-            # self.__getFundNetValue(fund_code)
             self.__getFundBaseInfor(fund_code)
-            #self.__getFundManagerInfor(fund_code)
+            self.__getFundNetValue(fund_code)
+            self.__getFundManagerInfor(fund_code)
+            if i % 10 == 0:
+                print ('{}/{}').format(i, count)
             #'''
+
+
 
 def main():
     fspider = FundSpider()

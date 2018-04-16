@@ -38,7 +38,7 @@ class MySQLServer():
             'mysql+mysqldb://marshao:123@10.175.10.231/DB_FundsAnalysis?charset=utf8',
             encoding='utf-8', pool_size=150, echo=True)
 
-        DBSession = sessionmaker(bind=self.db_engine)
+        #DBSession = sessionmaker(bind=self.db_engine)
         # session = DBSession()
         # session.execute('show databases')
         #self.meta = MetaData(self.db_engine)

@@ -15,7 +15,8 @@
 import C_MySQL_Server as db
 from sqlalchemy import select
 import pandas as pd
-from datetime import *
+from datetime import datetime, date, timedelta
+import pickle
 
 class Fund():
     def __init__(self):
@@ -165,7 +166,7 @@ class FundInstance(Fund):
     def getUnitNetValueList(self, fund_code):
         stat = "select * from tb_FundNetValue where fund_code = %s order by quote_date DESC" % fund_code
         try:
-            unit_net_value_list = pd.read_sql(stat, con=self.engine, index_col='quote_date')
+            unit_net_value_list = pd.read_sql(stat, con=self.engine)
         except Exception as e:
             print (fund_code, e)
         return unit_net_value_list
@@ -256,11 +257,19 @@ class FundList(Fund):
         if year is None:
             year = 0
 
-        current_year = datetime.today().year
-        df_result = df_list.loc[(df_list['issue_date'].apply(lambda x: x.year) - current_year) >= year]
-
+        current = datetime.today()
+        target_year = current - timedelta(days=(year * 360))
+        df_result = df_list.loc[df_list['issue_date'] <= target_year]
         return df_result
 
+    def dumpFundCodes(self, df_list=None):
+        if df_list is None:
+            df_list = self.full_list
+        df_list.reset_index(inplace=True)
+        # print df_list
+        # with open('selected_fund_codes.csv', wb) as f:
+        df_list.to_csv(path_or_buf='selected_fund_codes.csv', header=False, columns=['fund_code'], index=False)
+        df_list['fund_code'].to_pickle('selected_funds.ticker')
 
 
 
@@ -269,11 +278,10 @@ def main():
     # fund = Fund(fund_name= '嘉实沪港深回报混合型证券投资基金')
     fund_list = FundList()
     funds = fund_list.getBuyableFunds()
-    print fund_list.fund_types['2']
-    # print fund_list.getFundsInType(fund_type_index=1, df_list=funds)
-    # print fund_list.getFundsIssuedBeforeThan(df_list=funds, datestr='20100101')
-    print fund_list.getFundsIssuedLongerThan(df_list=funds, year=1)
-
+    funds = fund_list.getFundsInType(funds, 2)
+    funds = fund_list.getFundsIssuedBeforeThan(df_list=funds, datestr='20150101')
+    # print funds
+    fund_list.dumpFundCodes(funds)
 
 if __name__ == "__main__":
     main()
