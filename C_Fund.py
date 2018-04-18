@@ -262,14 +262,14 @@ class FundList(Fund):
         df_result = df_list.loc[df_list['issue_date'] <= target_year]
         return df_result
 
-    def dumpFundCodes(self, df_list=None):
+    def dumpFundCodes(self, path, df_list=None):
         if df_list is None:
             df_list = self.full_list
         df_list.reset_index(inplace=True)
         # print df_list
         # with open('selected_fund_codes.csv', wb) as f:
-        df_list.to_csv(path_or_buf='selected_fund_codes.csv', header=False, columns=['fund_code'], index=False)
-        df_list['fund_code'].to_pickle('selected_funds.ticker')
+        df_list.to_csv(path_or_buf='{}.csv'.format(path), header=False, columns=['fund_code'], index=False)
+        df_list['fund_code'].to_pickle('{}.ticker'.format(path))
 
 
 
@@ -278,10 +278,10 @@ def main():
     # fund = Fund(fund_name= '嘉实沪港深回报混合型证券投资基金')
     fund_list = FundList()
     funds = fund_list.getBuyableFunds()
-    funds = fund_list.getFundsInType(funds, 2)
+    # funds = fund_list.getFundsInType(funds, 2)
     funds = fund_list.getFundsIssuedBeforeThan(df_list=funds, datestr='20150101')
     # print funds
-    fund_list.dumpFundCodes(funds)
+    fund_list.dumpFundCodes('selected_full', funds)
 
 if __name__ == "__main__":
     main()
