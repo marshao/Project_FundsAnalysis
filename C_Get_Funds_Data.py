@@ -21,6 +21,7 @@ import pandas as pd
 import C_MySQL_Server as db
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy import bindparam, delete
+import pickle
 
 class FundSpider():
     def __init__(self):
@@ -776,6 +777,9 @@ class FundSpider():
         # setting URL
         fund_url = 'http://fund.eastmoney.com/data/FundPicData.aspx?bzdm={}&n=0&dt={}'.format(fund_code, url_p)
 
+        # Define error_list
+        error_funds = []
+
         try:
             res = self.__getURL(url=fund_url)
             # soup = BeautifulSoup(res.text, 'html.parser')
@@ -783,7 +787,8 @@ class FundSpider():
             records = record[0].split('|')
         except  Exception as e:
             # print ('getFundNVFullList', fund_code, e)
-            print ('getFundCumIncomeRate', fund_code, period, e)
+            print ('getWebContents', fund_code, period, e)
+            error_funds.append(['getWebContents', fund_code, period])
 
         sql_param = []
         try:
@@ -799,7 +804,8 @@ class FundSpider():
 
                 sql_param.append(result)
         except  Exception as e:
-            print ('getFundCumIncomeRate', fund_code, period, e)
+            print ('parser web contents', fund_code, period, e)
+            error_funds.append(['parserWebContents', fund_code, period])
 
         try:
 
@@ -820,8 +826,9 @@ class FundSpider():
             self.db_server.processData(func='insert', sql_script=insert_stat, parameter=sql_param)
 
         except  Exception as e:
-            print ('getFundCumIncomeRate', fund_code, period, e)
-
+            print ('save contents', fund_code, period, e)
+            error_funds.append(['saveWebContents', fund_code, period])
+        self.__toPickles(error_funds, 'error_funds.ticker')
         return
 
     def __getFundDivident(self, fund_code=None, quote_time=None, func=None):
@@ -842,21 +849,28 @@ class FundSpider():
     def __getFundFinancialIndicators(self, fund_code=None, quote_time=None, func=None):
         pass
 
+    def __toPickles(self, data, path):
+        with open(path, 'ab') as f:
+            pickle.dump(data, f)
+
     def getFundInforFromWeb(self, fund_code=None, func=None, quote_time=None, infor=None):
         #self.__getFundManagerInfor('570006')
         #self.__getFundManagerInfor('070018')
         # self.__getFundNetValue('003563')
         #self.__getFundBaseInfor('005488')
-        self.__getFundCumIncomeRate('110022', '1Y')
+        # self.__getFundCumIncomeRate('004473', '6M')
+        # '''
+        periods = ['1M', '3M', '6M', '1Y', '3Y', '5Y', 'all']
 
-        '''
         fund_list = self.__getFundCodes()
         count = len(fund_list)
         for i in range(len(fund_list)):
             fund_code = fund_list[i][0]
-            self.__getFundBaseInfor(fund_code)
-            self.__getFundNetValue(fund_code)
-            self.__getFundManagerInfor(fund_code)
+            # self.__getFundBaseInfor(fund_code)
+            # self.__getFundNetValue(fund_code)
+            # self.__getFundManagerInfor(fund_code)
+            for peiord in periods:
+                self.__getFundCumIncomeRate(fund_code=fund_code, period=peiord)
             if i % 10 == 0:
                 print ('{}/{}').format(i, count)
             #'''
