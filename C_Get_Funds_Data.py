@@ -20,7 +20,7 @@ import random
 import pandas as pd
 import C_MySQL_Server as db
 from sqlalchemy.dialects.mysql import insert
-from sqlalchemy import bindparam
+from sqlalchemy import bindparam, delete
 
 class FundSpider():
     def __init__(self):
@@ -738,6 +738,92 @@ class FundSpider():
 
         return
 
+    def __getFundCumIncomeRate(self, fund_code=None, period=None):
+        '''
+            Get fund cumulative income rate by period
+            :param fund_code:
+            :return:
+        '''
+        # Get instance of des table in db
+        if (period is None) or (period == '1M'):
+            table_p = '1M'
+            url_p = 'month'
+        elif period == '3M':
+            table_p = '3M'
+            url_p = 'threemonth'
+        elif period == '6M':
+            table_p = '6M'
+            url_p = 'sixmonth'
+        elif period == '1Y':
+            table_p = '1Y'
+            url_p = 'year'
+        elif period == '3Y':
+            table_p = '3Y'
+            url_p = 'threeyear'
+        elif period == '5Y':
+            table_p = '5Y'
+            url_p = 'fiveyear'
+        elif period == 'all':
+            table_p = 'All'
+            url_p = 'all'
+        else:
+            print ('No such period {}'.format(period))
+            return
+
+        # Setting Table Name
+        tb_FundCumIncomeRate = self.db_server.getTable('tb_FundCumIncomeRate_{}'.format(table_p))
+
+        # setting URL
+        fund_url = 'http://fund.eastmoney.com/data/FundPicData.aspx?bzdm={}&n=0&dt={}'.format(fund_code, url_p)
+
+        try:
+            res = self.__getURL(url=fund_url)
+            # soup = BeautifulSoup(res.text, 'html.parser')
+            record = re.findall('"(.*?)"', res.text)
+            records = record[0].split('|')
+        except  Exception as e:
+            # print ('getFundNVFullList', fund_code, e)
+            print ('getFundCumIncomeRate', fund_code, period, e)
+
+        sql_param = []
+        try:
+            for item in records:
+                # build two dictionaries to break and convert data
+                result = {}
+                unit = item.split('_')
+                result['fund_code'] = fund_code
+                result['quote_date'] = self.__dateChtoEng(unit[0].replace('/', ''))
+                result['fund_cum_income_rate'] = float(unit[1].encode('utf-8'))
+                result['sh300idx_cum_income_rate'] = float(unit[2].encode('utf-8'))
+                result['shidx_cum_income_rate'] = float(unit[3].encode('utf-8'))
+
+                sql_param.append(result)
+        except  Exception as e:
+            print ('getFundCumIncomeRate', fund_code, period, e)
+
+        try:
+
+            delete_stat = delete(tb_FundCumIncomeRate). \
+                where(tb_FundCumIncomeRate.c.fund_code == fund_code)
+
+            insert_stat = insert(tb_FundCumIncomeRate). \
+                values(
+                fund_code=bindparam('fund_code'),
+                quote_date=bindparam('quote_date'),
+                fund_cum_income_rate=bindparam('fund_cum_income_rate'),
+                sh300idx_cum_income_rate=bindparam('sh300idx_cum_income_rate'),
+                shidx_cum_income_rate=bindparam('shidx_cum_income_rate')
+            )
+
+            # stat = [upsert_stat, upsert_stat]
+            self.db_server.processData(func='delete', sql_script=delete_stat)
+            self.db_server.processData(func='insert', sql_script=insert_stat, parameter=sql_param)
+
+        except  Exception as e:
+            print ('getFundCumIncomeRate', fund_code, period, e)
+
+        return
+
     def __getFundDivident(self, fund_code=None, quote_time=None, func=None):
         pass
 
@@ -761,7 +847,9 @@ class FundSpider():
         #self.__getFundManagerInfor('070018')
         # self.__getFundNetValue('003563')
         #self.__getFundBaseInfor('005488')
-        #'''
+        self.__getFundCumIncomeRate('110022', '1Y')
+
+        '''
         fund_list = self.__getFundCodes()
         count = len(fund_list)
         for i in range(len(fund_list)):

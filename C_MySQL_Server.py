@@ -15,6 +15,7 @@ from sqlalchemy import Table, MetaData, exists, update, and_, select, bindparam
 
 
 class MySQLServer():
+
     db_engine = create_engine('mysql+mysqldb://marshao:123@10.175.10.231/DB_FundsAnalysis?charset=utf8',
                               encoding='utf-8', pool_size=150, echo=False)
     DBSession = sessionmaker(bind=db_engine)
@@ -69,6 +70,9 @@ class MySQLServer():
             self.__trunkData(fund_code=fund_code, quote_time=quote_time, sql_script=sql_script, des_table=des_table, src_table=src_table, parameter=parameter)
         elif func == 'upsert':
             self.__upsertData(fund_code=fund_code, quote_time=quote_time, sql_script=sql_script, des_table=des_table, src_table=src_table, parameter=parameter)
+        elif func == 'delete':
+            self.__deleteData(fund_code=fund_code, quote_time=quote_time, sql_script=sql_script, des_table=des_table,
+                              src_table=src_table, parameter=parameter)
         else:
             print "DB engine do not have %s function"%func
 
@@ -93,3 +97,7 @@ class MySQLServer():
     def __trunkData(self, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None, parameter=None):
         stat = 'Truncate table %s;' % des_table
         MySQLServer.session.execute(stat)
+
+    def __deleteData(self, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None,
+                     parameter=None):
+        MySQLServer.session.execute(sql_script)

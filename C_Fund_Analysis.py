@@ -58,6 +58,32 @@ class C_Fund_Analysis():
 
         df_funds_nav.to_csv('fund_nav.csv', header=True, sep=',')
 
+    def loadFundsCumNavInCSV(self, before, path):
+        df_funds_nav = pd.DataFrame()
+        df_funds_list = self.loadFundCodesFromPickle(path)
+
+        i = 0
+        count = df_funds_list.count(axis=0)
+        before_date = datetime.strptime(before, '%Y-%m-%d')
+
+        for fund in df_funds_list['fund_code']:
+            if i % 10 == 0:
+                print ('{}/{}'.format(i, count))
+            i += 1
+
+            fi = FundInstance(fund)
+            df_single_nav = fi.getUnitNetValueList(fund).loc[:, ['quote_date', 'cum_net_value']]
+            df_single_nav.rename(columns={'cum_net_value': '{}_Nav'.format(fund)}, inplace=True)
+            df_single_nav = df_single_nav.loc[df_single_nav['quote_date'] > before_date, :]
+
+            if df_funds_nav.empty:
+                df_funds_nav = df_single_nav
+            else:
+                df_funds_nav = pd.DataFrame.merge(df_funds_nav, df_single_nav, how='outer',
+                                                  on=['quote_date', 'quote_date'])
+
+        df_funds_nav.to_csv('fund_cum_nav.csv', header=True, sep=',')
+
     def loadFundsChgInCSV(self, before, path):
         df_funds_nav = pd.DataFrame()
         df_funds_list = self.loadFundCodesFromPickle(path)
@@ -101,6 +127,10 @@ class C_Fund_Analysis():
         df['mean'] = data.mean()
         df['std'] = data.std()
         df['median'] = data.median()
+        df['max'] = data.max()
+        df['min'] = data.min()
+        df['mad'] = data.mad()
+        df['sum'] = data.sum()
         df = df.sort_values(['mean'], ascending=False)
         if path is not None:
             self.toPickles(df, path)
@@ -174,22 +204,25 @@ class C_Fund_Analysis():
 
 def main():
     fa = C_Fund_Analysis()
-    #'''
+    fa.loadFundsCumNavInCSV('2015-01-01', 'selected_full.ticker')
+    df_nav = fa.readFundsDataFromCSV('fund_cum_nav.csv')
+    df_sta = fa.fundsStatistics(df_nav, path='fund_cum_nav_statisic.ticker')
+    '''
     fa.loadFundsNavInCSV('2015-01-01', 'selected_full.ticker')
     df_nav = fa.readFundsDataFromCSV('fund_nav.csv')
     df_sta = fa.fundsStatistics(df_nav, path='fund_nav_statisic.ticker')
     print df_sta
-    #'''
+    '''
     #df_corr = fa.fundsCorr(df_nav)
     #pair = fa.filterCorr(df_corr, 0.1, -0.1, sort=True)
     #fa.plotCorrHeadMap(df_corr)
 
-    #'''
+    '''
     fa.loadFundsChgInCSV('2015-01-01', 'selected_full.ticker')
     df_nav = fa.readFundsDataFromCSV('nav_chg.csv')
     df_sta = fa.fundsStatistics(df_nav, path='fund_nav_chg_statistic.ticker')
     print df_sta
-    #'''
+    '''
 
 if __name__ == "__main__":
     main()
