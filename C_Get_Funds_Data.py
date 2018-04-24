@@ -913,7 +913,7 @@ class FundSpider():
             except  Exception as e:
                 print ('save contents', fund_code, period, e)
                 error_funds.append(['saveWebContents', fund_code, period])
-            self.__toPickles(error_funds, 'error_funds_2.ticker')
+            self.__toPickles(error_funds, 'error_funds_rank_in_class.ticker')
 
         return
 
@@ -984,7 +984,7 @@ class FundSpider():
             except  Exception as e:
                 print ('save contents', fund_code, period, e)
                 error_funds.append(['saveWebContents', fund_code, period])
-            self.__toPickles(error_funds, 'error_funds_2.ticker')
+            self.__toPickles(error_funds, 'error_funds_rank_percent.ticker')
 
         return
 
