@@ -22,6 +22,8 @@ import C_MySQL_Server as db
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy import bindparam, delete
 import pickle
+import multiprocessing as mp
+
 
 class FundSpider():
     def __init__(self):
@@ -739,12 +741,18 @@ class FundSpider():
 
         return
 
-    def __getFundCumIncomeRate(self, fund_code=None, period=None):
+    def getFundCumIncomeRate(self, fund_code=None, period=None, model=None):
         '''
             Get fund cumulative income rate by period
             :param fund_code:
             :return:
         '''
+        # Setting model to deal with database
+        if (model is None) or (model == 'upsert'):
+            model = 'upsert'
+        else:
+            model == 'del'
+
         # Get instance of des table in db
         if (period is None) or (period == '1M'):
             table_p = '1M'
@@ -820,16 +828,97 @@ class FundSpider():
                 sh300idx_cum_income_rate=bindparam('sh300idx_cum_income_rate'),
                 shidx_cum_income_rate=bindparam('shidx_cum_income_rate')
             )
+            upsert_stat = insert_stat.on_duplicate_key_update(
+                fund_cum_income_rate=insert_stat.inserted.fund_cum_income_rate,
+                sh300idx_cum_income_rate=insert_stat.inserted.sh300idx_cum_income_rate,
+                shidx_cum_income_rate=insert_stat.inserted.shidx_cum_income_rate
+            )
 
-            # stat = [upsert_stat, upsert_stat]
-            self.db_server.processData(func='delete', sql_script=delete_stat)
-            self.db_server.processData(func='insert', sql_script=insert_stat, parameter=sql_param)
+            if model == 'del':
+                self.db_server.processData(func='delete', sql_script=delete_stat)
+                self.db_server.processData(func='insert', sql_script=insert_stat, parameter=sql_param)
+            else:
+                self.db_server.processData(func='upsert', sql_script=upsert_stat, parameter=sql_param)
 
         except  Exception as e:
             print ('save contents', fund_code, period, e)
             error_funds.append(['saveWebContents', fund_code, period])
-        self.__toPickles(error_funds, 'error_funds.ticker')
+        self.__toPickles(error_funds, 'error_funds_2.ticker')
         return
+
+    def __getFundRankInClass(self, fund_code=None, period=None, model=None):
+        # Setting model to deal with database
+        if (model is None) or (model == 'upsert'):
+            model = 'upsert'
+        else:
+            model == 'del'
+
+        # Get instance of des table in db
+        period_list = ['year', 'threeyear', 'fiveyear', 'all']
+
+        # Setting Table Name
+        tb_FundRankInClass = self.db_server.getTable('tb_FundRankInClass')
+
+        for period in period_list:
+            sql_param = []
+            # setting URL
+            fund_url = 'http://fund.eastmoney.com/data/FundPicData.aspx?bzdm={}&n=4&dt={}'.format(fund_code, period)
+
+            # Define error_list
+            error_funds = []
+
+            try:
+                res = self.__getURL(url=fund_url)
+                record = re.findall('"(.*?)"', res.text)
+                records = record[0].split('|')
+            except  Exception as e:
+                # print ('getFundNVFullList', fund_code, e)
+                print ('getWebContents', fund_code, period, e)
+                error_funds.append(['getWebContents', fund_code, period])
+
+            try:
+                for item in records:
+                    # build two dictionaries to break and convert data
+                    result = {}
+                    unit = item.split('_')
+                    if unit[1] != '':
+                        result['fund_code'] = fund_code
+                        result['quote_date'] = self.__dateChtoEng(unit[0].replace('/', ''))
+                        result['fund_rank_in_class'] = unit[1]
+                        sql_param.append(result)
+            except  Exception as e:
+                print ('parser web contents', fund_code, period, e)
+                error_funds.append(['parserWebContents', fund_code, period])
+            try:
+
+                delete_stat = delete(tb_FundRankInClass). \
+                    where(tb_FundRankInClass.c.fund_code == fund_code)
+
+                insert_stat = insert(tb_FundRankInClass). \
+                    values(
+                    fund_code=bindparam('fund_code'),
+                    quote_date=bindparam('quote_date'),
+                    fund_rank_in_class=bindparam('fund_rank_in_class')
+                )
+                upsert_stat = insert_stat.on_duplicate_key_update(
+                    fund_rank_in_class=insert_stat.inserted.fund_rank_in_class
+                )
+
+                if model == 'del':
+                    self.db_server.processData(func='delete', sql_script=delete_stat)
+                    self.db_server.processData(func='insert', sql_script=insert_stat, parameter=sql_param)
+                else:
+                    self.db_server.processData(func='upsert', sql_script=upsert_stat, parameter=sql_param)
+
+            except  Exception as e:
+                print ('save contents', fund_code, period, e)
+                error_funds.append(['saveWebContents', fund_code, period])
+            self.__toPickles(error_funds, 'error_funds_2.ticker')
+
+        return
+
+    def __mergeRankInClass(self, sql_params, new_params):
+        pass
 
     def __getFundDivident(self, fund_code=None, quote_time=None, func=None):
         pass
@@ -853,33 +942,96 @@ class FundSpider():
         with open(path, 'ab') as f:
             pickle.dump(data, f)
 
+    def fromPickles(self, path):
+        with open(path, 'rb') as f:
+            data = pickle.load(f)
+        f.close()
+
+        print(data)
+
+    def timeit(self, func):
+        def wrapper():
+            start = time.clock()
+            func()
+            end = time.clock()
+            print ('Used time: {}'.format(start - end))
+
+        return wrapper
+
+    def runFunc(self, args):
+        print args
+        # args[0](arg for arg in args[1:])
+
     def getFundInforFromWeb(self, fund_code=None, func=None, quote_time=None, infor=None):
         #self.__getFundManagerInfor('570006')
         #self.__getFundManagerInfor('070018')
         # self.__getFundNetValue('003563')
         #self.__getFundBaseInfor('005488')
-        # self.__getFundCumIncomeRate('004473', '6M')
-        # '''
+        # self.getFundCumIncomeRate('004473', '6M')
+        self.__getFundRankInClass('570006')
+        '''
         periods = ['1M', '3M', '6M', '1Y', '3Y', '5Y', 'all']
 
         fund_list = self.__getFundCodes()
         count = len(fund_list)
-        for i in range(len(fund_list)):
+        for i in range(count):
             fund_code = fund_list[i][0]
             # self.__getFundBaseInfor(fund_code)
             # self.__getFundNetValue(fund_code)
             # self.__getFundManagerInfor(fund_code)
-            for peiord in periods:
-                self.__getFundCumIncomeRate(fund_code=fund_code, period=peiord)
+            # self.__getFundRankInClass(fund_code)
+            for j in range(6):
+                for period in periods:
+                    self.getFundCumIncomeRate(fund_code=fund_code, period=period)
             if i % 10 == 0:
                 print ('{}/{}').format(i, count)
-            #'''
+            '''
 
+    def getFundCumIncomeRateInLoops(self):
+        periods = ['1M', '3M', '6M', '1Y', '3Y', '5Y', 'all']
+        fund_list = self.__getFundCodes()
+        count = len(fund_list)
+        param_periods = []
+        param_fund_codes = []
+
+        # self.db_server.processData(func='truncate', des_table='tb_FundCumIncomeRate_1M')
+        # self.db_server.processData(func='truncate', des_table='tb_FundCumIncomeRate_3M')
+        # self.db_server.processData(func='truncate', des_table='tb_FundCumIncomeRate_6M')
+        # self.db_server.processData(func='truncate', des_table='tb_FundCumIncomeRate_1Y')
+        # self.db_server.processData(func='truncate', des_table='tb_FundCumIncomeRate_3Y')
+        # self.db_server.processData(func='truncate', des_table='tb_FundCumIncomeRate_5Y')
+        # self.db_server.processData(func='truncate', des_table='tb_FundCumIncomeRate_All')
+        for f in fund_list:
+            param_fund_codes.append(f[0])
+        param_fund_codes = param_fund_codes * 7
+
+        for period in periods:
+            for i in range(count):
+                # param_instances.append(self)
+                param_periods.append(period)
+
+        param_t = zip(param_fund_codes, param_periods)
+
+        mp_runner(param_t)
 
 
 def main():
     fspider = FundSpider()
+    # fspider.getFundInforFromWeb()
+    #fspider.fromPickles(path='error_funds.ticker')
     fspider.getFundInforFromWeb()
+
+
+def run_mp(params):
+    fs = FundSpider()
+    return fs.getFundCumIncomeRate(params[0], params[1])
+
+
+def mp_runner(params):
+    pool = mp.Pool(8)
+    pool.map_async(run_mp, params)
+    pool.close()
+    pool.join()
 
 if __name__ == "__main__":
     main()

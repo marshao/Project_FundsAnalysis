@@ -24,7 +24,8 @@ session = DBSession()
 meta = MetaData(db_engine)
 tb_FundList = Table('tb_FundList', meta, autoload=True)
 
-
+'''
+### Created Tables
 class tb_FundCumIncomeRate_1M(Base):
     __tablename__ = 'tb_FundCumIncomeRate_1M'
 
@@ -100,6 +101,15 @@ class tb_FundCumIncomeRate_All(Base):
     sh300idx_cum_income_rate = Column(DECIMAL(8, 4), nullable=True)
     shidx_cum_income_rate = Column(DECIMAL(8, 4), nullable=True)
     created_date = Column(DateTime(), nullable=False, server_default=text('CURRENT_TIMESTAMP'))
+'''
+
+
+class tb_FundRankInClass(Base):
+    __tablename__ = 'tb_FundRankInClass'
+
+    fund_code = Column(String(10), ForeignKey(tb_FundList.c.fund_code), primary_key=True)
+    quote_date = Column(DateTime(), primary_key=True)
+    fund_rank_in_class = Column(Integer(), nullable=True)
 
 
 Base.metadata.create_all(db_engine)
