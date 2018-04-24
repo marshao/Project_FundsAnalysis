@@ -917,6 +917,77 @@ class FundSpider():
 
         return
 
+    def __getFundRankInPercent(self, fund_code=None, period=None, model=None):
+        # Setting model to deal with database
+        if (model is None) or (model == 'upsert'):
+            model = 'upsert'
+        else:
+            model == 'del'
+
+        # Get instance of des table in db
+        period_list = ['year', 'threeyear', 'fiveyear', 'all']
+
+        # Setting Table Name
+        tb_FundRankInPercent = self.db_server.getTable('tb_FundRankInPercent')
+
+        for period in period_list:
+            sql_param = []
+            # setting URL
+            fund_url = 'http://fund.eastmoney.com/data/FundPicData.aspx?bzdm={}&n=5&dt={}'.format(fund_code, period)
+
+            # Define error_list
+            error_funds = []
+
+            try:
+                res = self.__getURL(url=fund_url)
+                record = re.findall('"(.*?)"', res.text)
+                records = record[0].split('|')
+            except  Exception as e:
+                # print ('getFundNVFullList', fund_code, e)
+                print ('getWebContents', fund_code, period, e)
+                error_funds.append(['getWebContents', fund_code, period])
+
+            try:
+                for item in records:
+                    # build two dictionaries to break and convert data
+                    result = {}
+                    unit = item.split('_')
+                    if unit[1] != '':
+                        result['fund_code'] = fund_code
+                        result['quote_date'] = self.__dateChtoEng(unit[0].replace('/', ''))
+                        result['fund_rank_in_percent'] = float(unit[1])
+                        sql_param.append(result)
+            except  Exception as e:
+                print ('parser web contents', fund_code, period, e)
+                error_funds.append(['parserWebContents', fund_code, period])
+            try:
+
+                delete_stat = delete(tb_FundRankInPercent). \
+                    where(tb_FundRankInPercent.c.fund_code == fund_code)
+
+                insert_stat = insert(tb_FundRankInPercent). \
+                    values(
+                    fund_code=bindparam('fund_code'),
+                    quote_date=bindparam('quote_date'),
+                    fund_rank_in_percent=bindparam('fund_rank_in_percent')
+                )
+                upsert_stat = insert_stat.on_duplicate_key_update(
+                    fund_rank_in_percent=insert_stat.inserted.fund_rank_in_percent
+                )
+
+                if model == 'del':
+                    self.db_server.processData(func='delete', sql_script=delete_stat)
+                    self.db_server.processData(func='insert', sql_script=insert_stat, parameter=sql_param)
+                else:
+                    self.db_server.processData(func='upsert', sql_script=upsert_stat, parameter=sql_param)
+
+            except  Exception as e:
+                print ('save contents', fund_code, period, e)
+                error_funds.append(['saveWebContents', fund_code, period])
+            self.__toPickles(error_funds, 'error_funds_2.ticker')
+
+        return
+
     def __mergeRankInClass(self, sql_params, new_params):
         pass
 
@@ -968,8 +1039,9 @@ class FundSpider():
         # self.__getFundNetValue('003563')
         #self.__getFundBaseInfor('005488')
         # self.getFundCumIncomeRate('004473', '6M')
-        self.__getFundRankInClass('570006')
-        '''
+        # self.__getFundRankInClass('570006')
+        # self.__getFundRankInPercent('570006')
+        # '''
         periods = ['1M', '3M', '6M', '1Y', '3Y', '5Y', 'all']
 
         fund_list = self.__getFundCodes()
@@ -979,7 +1051,9 @@ class FundSpider():
             # self.__getFundBaseInfor(fund_code)
             # self.__getFundNetValue(fund_code)
             # self.__getFundManagerInfor(fund_code)
-            # self.__getFundRankInClass(fund_code)
+            self.__getFundRankInClass(fund_code)
+            self.__getFundRankInPercent(fund_code)
+            '''
             for j in range(6):
                 for period in periods:
                     self.getFundCumIncomeRate(fund_code=fund_code, period=period)
