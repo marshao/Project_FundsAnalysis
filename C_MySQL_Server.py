@@ -84,7 +84,9 @@ class MySQLServer():
         MySQLServer.session.execute(sql_script, parameter)
 
     def __upsertData(self, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None, parameter=None):
-        MySQLServer.session.execute(sql_script, parameter)
+        if sql_script is not None:
+            MySQLServer.session.execute(sql_script, parameter)
+
 
     def __updateData(self, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None, parameter=None):
         stat = des_table.update(). \
@@ -101,3 +103,7 @@ class MySQLServer():
     def __deleteData(self, fund_code=None, quote_time=None, sql_script=None, des_table=None, src_table=None,
                      parameter=None):
         MySQLServer.session.execute(sql_script)
+
+    def buildQuery(self, func, columns, des_table):
+        cols = des_table.columns
+        print cols.keys()[0]

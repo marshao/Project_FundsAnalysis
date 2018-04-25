@@ -454,12 +454,15 @@ class FundSpider():
 
     def __percentToFloat(self, data):
         if data.find('--') != -1:
-            data = 0.0
+            data = None
         else:
             try:
+                if data.find('%') != -1:
+                    data = data[:-1]
                 data = round((float(data) / 100), 4)
-            except:
+            except Exception as e:
                 data = None
+                print e
         return data
 
     def __scaleToFloat(self, data):
@@ -957,6 +960,7 @@ class FundSpider():
                         result['quote_date'] = self.__dateChtoEng(unit[0].replace('/', ''))
                         result['fund_rank_in_percent'] = float(unit[1])
                         sql_param.append(result)
+
             except  Exception as e:
                 print ('parser web contents', fund_code, period, e)
                 error_funds.append(['parserWebContents', fund_code, period])
@@ -988,8 +992,331 @@ class FundSpider():
 
         return
 
-    def __mergeRankInClass(self, sql_params, new_params):
-        pass
+    def __getPeriodicIncreaseDetial(self, fund_code=None, period=None, model=None):
+        # Setting model to deal with database
+        if (model is None) or (model == 'upsert'):
+            model = 'upsert'
+        else:
+            model == 'del'
+
+        # Setting Table Name
+        tb_FundPeriodicIncreaseDetail = self.db_server.getTable('tb_FundPeriodicIncreaseDetail')
+
+        sql_param = []
+
+        # setting URL
+        fund_url = 'http://fund.eastmoney.com/f10/FundArchivesDatas.aspx?type=jdzf&code={}'.format(fund_code)
+
+        # Define error_list
+        error_funds = []
+
+        try:
+            res = self.__getURL(url=fund_url)
+            soup = BeautifulSoup(res.text, 'html.parser')
+        except  Exception as e:
+            # print ('getFundNVFullList', fund_code, e)
+            print ('getWebContents', fund_code, e)
+            error_funds.append(['getWebContents', fund_code])
+
+        try:
+            result = {}
+            result['fund_code'] = fund_code
+            periods = ['this_year', 'last_week', 'last_month', 'last_3_month', 'last_6_month', 'last_year',
+                       'last_2_year',
+                       'last_3_year', 'last_5_year', 'ever_since']
+            contents = ['_inc', '_cls_avg', '_sh300', '_cls_rank', '_cls_tal', '_rank_chg', '_cls_mark']
+
+            uls = soup.find_all("ul")[1:11]
+            for i in range(0, 10):
+                items = uls[i].find_all("li")
+                # Process percent data
+                result[(periods[i] + contents[0])] = self.__percentToFloat(items[1].text)
+                result[(periods[i] + contents[1])] = self.__percentToFloat(items[2].text)
+                result[(periods[i] + contents[2])] = self.__percentToFloat(items[3].text)
+
+                # Process Rank data
+                rank = items[4].text
+                if rank.find('-') == -1:
+                    result[(periods[i] + contents[3])] = rank[:rank.find('|')]
+                    result[(periods[i] + contents[4])] = rank[(rank.find('|') + 1):]
+                else:
+                    result[(periods[i] + contents[3])] = None
+                    result[(periods[i] + contents[4])] = None
+
+                # Process Rank Change Data
+                rank_chg = items[5].text
+                if rank_chg.find('-') == -1:
+                    if rank_chg.find('\u2191'):
+                        rank_chg = rank_chg[:rank_chg.find(r'\\')]
+                        result[(periods[i] + contents[5])] = int(rank_chg)
+                    else:
+                        rank_chg = rank_chg[:rank_chg.find(r'\\')]
+                        result[(periods[i] + contents[5])] = int(rank_chg) * (-1)
+                else:
+                    result[(periods[i] + contents[5])] = None
+
+                # Process mark data
+                mark = items[6].text
+                if mark.find('-') == -1:
+                    if mark == u'\u826f\u597d':
+                        result[(periods[i] + contents[6])] = 'good'
+                    elif mark == u'\u4f18\u79c0':
+                        result[(periods[i] + contents[6])] = 'excelent'
+                    elif mark == u'\u4e00\u822c':
+                        result[(periods[i] + contents[6])] = 'normal'
+                    else:
+                        result[(periods[i] + contents[6])] = 'bad'
+                else:
+                    result[(periods[i] + contents[6])] = None
+
+            sql_param.append(result)
+        except  Exception as e:
+            print ('parser web contents', fund_code, e)
+            error_funds.append(['parserWebContents', fund_code])
+
+        try:
+
+            insert_stat = insert(tb_FundPeriodicIncreaseDetail). \
+                values(
+                fund_code=bindparam('fund_code'),
+                this_year_inc=bindparam('this_year_inc'),
+                this_year_cls_avg=bindparam('this_year_cls_avg'),
+                this_year_sh300=bindparam('this_year_sh300'),
+                this_year_cls_rank=bindparam('this_year_cls_rank'),
+                this_year_cls_tal=bindparam('this_year_cls_tal'),
+                this_year_rank_chg=bindparam('this_year_rank_chg'),
+                this_year_cls_mark=bindparam('this_year_cls_mark'),
+                last_week_inc=bindparam('last_week_inc'),
+                last_week_cls_avg=bindparam('last_week_cls_avg'),
+                last_week_sh300=bindparam('last_week_sh300'),
+                last_week_cls_rank=bindparam('last_week_cls_rank'),
+                last_week_cls_tal=bindparam('last_week_cls_rank'),
+                last_week_rank_chg=bindparam('last_week_rank_chg'),
+                last_week_cls_mark=bindparam('last_week_cls_mark'),
+                last_month_inc=bindparam('last_month_inc'),
+                last_month_cls_avg=bindparam('last_month_cls_avg'),
+                last_month_sh300=bindparam('last_month_sh300'),
+                last_month_cls_rank=bindparam('last_month_cls_rank'),
+                last_month_cls_tal=bindparam('last_month_cls_tal'),
+                last_month_rank_chg=bindparam('last_month_rank_chg'),
+                last_month_cls_mark=bindparam('last_month_cls_mark'),
+                last_3_month_inc=bindparam('last_3_month_inc'),
+                last_3_month_cls_avg=bindparam('last_3_month_cls_avg'),
+                last_3_month_sh300=bindparam('last_3_month_sh300'),
+                last_3_month_cls_rank=bindparam('last_3_month_cls_rank'),
+                last_3_month_cls_tal=bindparam('last_3_month_cls_tal'),
+                last_3_month_rank_chg=bindparam('last_3_month_rank_chg'),
+                last_3_month_cls_mark=bindparam('last_3_month_cls_mark'),
+                last_6_month_inc=bindparam('last_6_month_inc'),
+                last_6_month_cls_avg=bindparam('last_6_month_cls_avg'),
+                last_6_month_sh300=bindparam('last_6_month_sh300'),
+                last_6_month_cls_rank=bindparam('last_6_month_cls_rank'),
+                last_6_month_cls_tal=bindparam('last_6_month_cls_tal'),
+                last_6_month_rank_chg=bindparam('last_6_month_rank_chg'),
+                last_6_month_cls_mark=bindparam('last_6_month_cls_mark'),
+                last_year_inc=bindparam('last_year_inc'),
+                last_year_cls_avg=bindparam('last_year_cls_avg'),
+                last_year_sh300=bindparam('last_year_sh300'),
+                last_year_cls_rank=bindparam('last_year_cls_rank'),
+                last_year_cls_tal=bindparam('last_year_cls_tal'),
+                last_year_rank_chg=bindparam('last_year_rank_chg'),
+                last_year_cls_mark=bindparam('last_year_cls_mark'),
+                last_2_year_inc=bindparam('last_2_year_inc'),
+                last_2_year_cls_avg=bindparam('last_2_year_cls_avg'),
+                last_2_year_sh300=bindparam('last_2_year_sh300'),
+                last_2_year_cls_rank=bindparam('last_2_year_cls_rank'),
+                last_2_year_cls_tal=bindparam('last_2_year_cls_tal'),
+                last_2_year_rank_chg=bindparam('last_2_year_rank_chg'),
+                last_2_year_cls_mark=bindparam('last_2_year_cls_mark'),
+                last_3_year_inc=bindparam('last_3_year_inc'),
+                last_3_year_cls_avg=bindparam('last_3_year_cls_avg'),
+                last_3_year_sh300=bindparam('last_3_year_sh300'),
+                last_3_year_cls_rank=bindparam('last_3_year_cls_rank'),
+                last_3_year_cls_tal=bindparam('last_3_year_cls_tal'),
+                last_3_year_rank_chg=bindparam('last_3_year_rank_chg'),
+                last_3_year_cls_mark=bindparam('last_3_year_cls_mark'),
+                last_5_year_inc=bindparam('last_5_year_inc'),
+                last_5_year_cls_avg=bindparam('last_5_year_cls_avg'),
+                last_5_year_sh300=bindparam('last_5_year_sh300'),
+                last_5_year_cls_rank=bindparam('last_5_year_cls_rank'),
+                last_5_year_cls_tal=bindparam('last_5_year_cls_tal'),
+                last_5_year_rank_chg=bindparam('last_5_year_rank_chg'),
+                last_5_year_cls_mark=bindparam('last_5_year_cls_mark'),
+                ever_since_inc=bindparam('ever_since_inc'),
+                ever_since_cls_avg=bindparam('ever_since_cls_avg'),
+                ever_since_sh300=bindparam('ever_since_sh300'),
+                ever_since_cls_rank=bindparam('ever_since_cls_rank'),
+                ever_since_cls_tal=bindparam('ever_since_cls_tal'),
+                ever_since_rank_chg=bindparam('ever_since_rank_chg'),
+                ever_since_cls_mark=bindparam('ever_since_cls_mark')
+            )
+            upsert_stat = insert_stat.on_duplicate_key_update(
+                this_year_inc=insert_stat.inserted.this_year_inc,
+                this_year_cls_avg=insert_stat.inserted.this_year_cls_avg,
+                this_year_sh300=insert_stat.inserted.this_year_sh300,
+                this_year_cls_rank=insert_stat.inserted.this_year_cls_rank,
+                this_year_cls_tal=insert_stat.inserted.this_year_cls_tal,
+                this_year_rank_chg=insert_stat.inserted.this_year_rank_chg,
+                this_year_cls_mark=insert_stat.inserted.this_year_cls_mark,
+                last_week_inc=insert_stat.inserted.last_week_inc,
+                last_week_cls_avg=insert_stat.inserted.last_week_cls_avg,
+                last_week_sh300=insert_stat.inserted.last_week_sh300,
+                last_week_cls_rank=insert_stat.inserted.last_week_cls_rank,
+                last_week_cls_tal=insert_stat.inserted.last_week_cls_rank,
+                last_week_rank_chg=insert_stat.inserted.last_week_rank_chg,
+                last_week_cls_mark=insert_stat.inserted.last_week_cls_mark,
+                last_month_inc=insert_stat.inserted.last_month_inc,
+                last_month_cls_avg=insert_stat.inserted.last_month_cls_avg,
+                last_month_sh300=insert_stat.inserted.last_month_sh300,
+                last_month_cls_rank=insert_stat.inserted.last_month_cls_rank,
+                last_month_cls_tal=insert_stat.inserted.last_month_cls_tal,
+                last_month_rank_chg=insert_stat.inserted.last_month_rank_chg,
+                last_month_cls_mark=insert_stat.inserted.last_month_cls_mark,
+                last_3_month_inc=insert_stat.inserted.last_3_month_inc,
+                last_3_month_cls_avg=insert_stat.inserted.last_3_month_cls_avg,
+                last_3_month_sh300=insert_stat.inserted.last_3_month_sh300,
+                last_3_month_cls_rank=insert_stat.inserted.last_3_month_cls_rank,
+                last_3_month_cls_tal=insert_stat.inserted.last_3_month_cls_tal,
+                last_3_month_rank_chg=insert_stat.inserted.last_3_month_rank_chg,
+                last_3_month_cls_mark=insert_stat.inserted.last_3_month_cls_mark,
+                last_6_month_inc=insert_stat.inserted.last_6_month_inc,
+                last_6_month_cls_avg=insert_stat.inserted.last_6_month_cls_avg,
+                last_6_month_sh300=insert_stat.inserted.last_6_month_sh300,
+                last_6_month_cls_rank=insert_stat.inserted.last_6_month_cls_rank,
+                last_6_month_cls_tal=insert_stat.inserted.last_6_month_cls_tal,
+                last_6_month_rank_chg=insert_stat.inserted.last_6_month_rank_chg,
+                last_6_month_cls_mark=insert_stat.inserted.last_6_month_cls_mark,
+                last_year_inc=insert_stat.inserted.last_year_inc,
+                last_year_cls_avg=insert_stat.inserted.last_year_cls_avg,
+                last_year_sh300=insert_stat.inserted.last_year_sh300,
+                last_year_cls_rank=insert_stat.inserted.last_year_cls_rank,
+                last_year_cls_tal=insert_stat.inserted.last_year_cls_tal,
+                last_year_rank_chg=insert_stat.inserted.last_year_rank_chg,
+                last_year_cls_mark=insert_stat.inserted.last_year_cls_mark,
+                last_2_year_inc=insert_stat.inserted.last_2_year_inc,
+                last_2_year_cls_avg=insert_stat.inserted.last_2_year_cls_avg,
+                last_2_year_sh300=insert_stat.inserted.last_2_year_sh300,
+                last_2_year_cls_rank=insert_stat.inserted.last_2_year_cls_rank,
+                last_2_year_cls_tal=insert_stat.inserted.last_2_year_cls_tal,
+                last_2_year_rank_chg=insert_stat.inserted.last_2_year_rank_chg,
+                last_2_year_cls_mark=insert_stat.inserted.last_2_year_cls_mark,
+                last_3_year_inc=insert_stat.inserted.last_3_year_inc,
+                last_3_year_cls_avg=insert_stat.inserted.last_3_year_cls_avg,
+                last_3_year_sh300=insert_stat.inserted.last_3_year_sh300,
+                last_3_year_cls_rank=insert_stat.inserted.last_3_year_cls_rank,
+                last_3_year_cls_tal=insert_stat.inserted.last_3_year_cls_tal,
+                last_3_year_rank_chg=insert_stat.inserted.last_3_year_rank_chg,
+                last_3_year_cls_mark=insert_stat.inserted.last_3_year_cls_mark,
+                last_5_year_inc=insert_stat.inserted.last_5_year_inc,
+                last_5_year_cls_avg=insert_stat.inserted.last_5_year_cls_avg,
+                last_5_year_sh300=insert_stat.inserted.last_5_year_sh300,
+                last_5_year_cls_rank=insert_stat.inserted.last_5_year_cls_rank,
+                last_5_year_cls_tal=insert_stat.inserted.last_5_year_cls_tal,
+                last_5_year_rank_chg=insert_stat.inserted.last_5_year_rank_chg,
+                last_5_year_cls_mark=insert_stat.inserted.last_5_year_cls_mark,
+                ever_since_inc=insert_stat.inserted.ever_since_inc,
+                ever_since_cls_avg=insert_stat.inserted.ever_since_cls_avg,
+                ever_since_sh300=insert_stat.inserted.ever_since_sh300,
+                ever_since_cls_rank=insert_stat.inserted.ever_since_cls_rank,
+                ever_since_cls_tal=insert_stat.inserted.ever_since_cls_tal,
+                ever_since_rank_chg=insert_stat.inserted.ever_since_rank_chg,
+                ever_since_cls_mark=insert_stat.inserted.ever_since_cls_mark
+
+            )
+
+            self.db_server.processData(func='upsert', sql_script=upsert_stat, parameter=sql_param)
+
+        except  Exception as e:
+            print ('save contents', fund_code, e)
+            error_funds.append(['saveWebContents', fund_code])
+        self.__toPickles(error_funds, 'error_funds_periodic_increase_detail.ticker')
+
+        return
+
+    def __getYearQuarterIncreaseDetail(self, fund_code=None, period=None, model=None):
+
+        # Setting Table Name
+        tb_FundYearQuarterIncreaseDetail = self.db_server.getTable('tb_FundYearQuarterIncreaseDetail')
+
+        sql_param = []
+
+        # setting URL
+        fund_url = 'http://fund.eastmoney.com/f10/FundArchivesDatas.aspx?type=jdndzf&code={}'.format(fund_code)
+        # Define error_list
+        error_funds = []
+
+        try:
+            res = self.__getURL(url=fund_url)
+            soup = BeautifulSoup(res.text, 'html.parser')
+        except  Exception as e:
+            # print ('getFundNVFullList', fund_code, e)
+            print ('getWebContents', fund_code, e)
+            error_funds.append(['getWebContents', fund_code])
+
+        try:
+            result = {}
+            result['fund_code'] = fund_code
+            contents = ['Q_1_inc_', 'Q_2_inc_', 'Q_3_inc_', 'Q_4_inc_', 'Y_inc_',
+                        'cls_avg_', 'cls_rank_', 'cls_tal_']
+
+            # build period list
+            periods = []
+            current_year = datetime.datetime.now().year
+            for i in range(10):
+                periods.append(str(current_year - i))
+
+            # build Columns:
+            columns = []
+            for c in contents:
+                for p in periods:
+                    columns.append(c + p)
+
+            data = soup.find_all("tr")
+            if len(data) != 0:  # Make sure the process go through only when there are data
+                if len(data) <= 11:  # Get at most 10 years data
+                    data = data[1:]
+                else:
+                    data = data[1:11]
+            else:
+                return
+
+            for i in range(len(data)):
+                items = data[i].find_all("td")
+
+                # Process percent data
+                result[(contents[0] + periods[i])] = self.__percentToFloat(items[1].text)
+                result[(contents[1] + periods[i])] = self.__percentToFloat(items[2].text)
+                result[(contents[2] + periods[i])] = self.__percentToFloat(items[3].text)
+                result[(contents[3] + periods[i])] = self.__percentToFloat(items[4].text)
+                result[(contents[4] + periods[i])] = self.__percentToFloat(items[5].text)
+                result[(contents[5] + periods[i])] = self.__percentToFloat(items[6].text)
+                # Process Rank data
+                rank = items[7].text
+                if rank.find('-') == -1:
+                    result[(contents[6] + periods[i])] = rank[:rank.find('|')]
+                    result[(contents[7] + periods[i])] = rank[(rank.find('|') + 1):]
+                else:
+                    result[(contents[6] + periods[i])] = None
+                    result[(contents[7] + periods[i])] = None
+
+            sql_param.append(result)
+        except  Exception as e:
+            print ('parser web contents', fund_code, e)
+            error_funds.append(['parserWebContents', fund_code])
+
+        try:
+
+            upsert_stat = self.db_server.buildQuery(func='upsert', columns=columns,
+                                                    des_table=tb_FundYearQuarterIncreaseDetail)
+            # self.db_server.processData(func='upsert', sql_script=upsert_stat, parameter=sql_param)
+
+        except  Exception as e:
+            print ('save contents', fund_code, e)
+            error_funds.append(['saveWebContents', fund_code])
+        self.__toPickles(error_funds, 'error_funds_periodic_increase_detail.ticker')
+
+        return
+
 
     def __getFundDivident(self, fund_code=None, quote_time=None, func=None):
         pass
@@ -1040,8 +1367,10 @@ class FundSpider():
         #self.__getFundBaseInfor('005488')
         # self.getFundCumIncomeRate('004473', '6M')
         # self.__getFundRankInClass('570006')
-        # self.__getFundRankInPercent('570006')
-        # '''
+        # self.__getFundRankInPercent('005852')
+        # self.__getPeriodicIncreaseDetial('110022')
+        self.__getYearQuarterIncreaseDetail('570006')
+        '''
         periods = ['1M', '3M', '6M', '1Y', '3Y', '5Y', 'all']
 
         fund_list = self.__getFundCodes()
@@ -1051,15 +1380,17 @@ class FundSpider():
             # self.__getFundBaseInfor(fund_code)
             # self.__getFundNetValue(fund_code)
             # self.__getFundManagerInfor(fund_code)
-            self.__getFundRankInClass(fund_code)
-            self.__getFundRankInPercent(fund_code)
-            '''
-            for j in range(6):
-                for period in periods:
-                    self.getFundCumIncomeRate(fund_code=fund_code, period=period)
+            #self.__getFundRankInClass(fund_code)
+            #self.__getFundRankInPercent(fund_code)
+            self.__getPeriodicIncreaseDetial(fund_code)
+
+            #for j in range(6):
+            #    for period in periods:
+            #        self.getFundCumIncomeRate(fund_code=fund_code, period=period)
+
             if i % 10 == 0:
                 print ('{}/{}').format(i, count)
-            '''
+               '''
 
     def getFundCumIncomeRateInLoops(self):
         periods = ['1M', '3M', '6M', '1Y', '3Y', '5Y', 'all']
