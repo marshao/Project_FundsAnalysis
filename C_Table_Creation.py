@@ -273,6 +273,14 @@ class tb_FundYearQuarterIncreaseDetail(Base):
     cls_avg_2010 = Column(DECIMAL(6, 4), nullable=True)
     cls_rank_2010 = Column(Integer, nullable=True)
     cls_tal_2010 = Column(Integer, nullable=True)
+    Q_1_inc_2009 = Column(DECIMAL(6, 4), nullable=True)
+    Q_2_inc_2009 = Column(DECIMAL(6, 4), nullable=True)
+    Q_3_inc_2009 = Column(DECIMAL(6, 4), nullable=True)
+    Q_4_inc_2009 = Column(DECIMAL(6, 4), nullable=True)
+    Y_inc_2009 = Column(DECIMAL(6, 4), nullable=True)
+    cls_avg_2009 = Column(DECIMAL(6, 4), nullable=True)
+    cls_rank_2009 = Column(Integer, nullable=True)
+    cls_tal_2009 = Column(Integer, nullable=True)
 '''
 
 Base.metadata.create_all(db_engine)

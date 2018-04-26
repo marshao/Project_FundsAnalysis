@@ -1254,22 +1254,8 @@ class FundSpider():
             error_funds.append(['getWebContents', fund_code])
 
         try:
-            result = {}
-            result['fund_code'] = fund_code
             contents = ['Q_1_inc_', 'Q_2_inc_', 'Q_3_inc_', 'Q_4_inc_', 'Y_inc_',
                         'cls_avg_', 'cls_rank_', 'cls_tal_']
-
-            # build period list
-            periods = []
-            current_year = datetime.datetime.now().year
-            for i in range(10):
-                periods.append(str(current_year - i))
-
-            # build Columns:
-            columns = []
-            for c in contents:
-                for p in periods:
-                    columns.append(c + p)
 
             data = soup.find_all("tr")
             if len(data) != 0:  # Make sure the process go through only when there are data
@@ -1280,7 +1266,22 @@ class FundSpider():
             else:
                 return
 
+            # build period list, at most 10 years data
+            periods = []
+            current_year = datetime.datetime.now().year
             for i in range(len(data)):
+                periods.append(str(current_year - i))
+
+            # build Columns:
+            columns = ['fund_code', ]
+            for p in periods:
+                for c in contents:
+                    columns.append(c + p)
+
+            result = {}
+            result['fund_code'] = fund_code
+            for i in range(len(data)):
+
                 items = data[i].find_all("td")
 
                 # Process percent data
@@ -1300,16 +1301,17 @@ class FundSpider():
                     result[(contents[7] + periods[i])] = None
 
             sql_param.append(result)
+
         except  Exception as e:
             print ('parser web contents', fund_code, e)
             error_funds.append(['parserWebContents', fund_code])
 
         try:
+            upsert_stat = self.db_server.buildQuery(func='upsert', parameters=sql_param,
+                                                    des_table_name='tb_FundYearQuarterIncreaseDetail')
 
-            upsert_stat = self.db_server.buildQuery(func='upsert', columns=columns,
-                                                    des_table=tb_FundYearQuarterIncreaseDetail)
-            # self.db_server.processData(func='upsert', sql_script=upsert_stat, parameter=sql_param)
-
+            self.db_server.processData(func='upsert', sql_script=upsert_stat)
+            print "{} is done".format(fund_code)
         except  Exception as e:
             print ('save contents', fund_code, e)
             error_funds.append(['saveWebContents', fund_code])
@@ -1369,8 +1371,8 @@ class FundSpider():
         # self.__getFundRankInClass('570006')
         # self.__getFundRankInPercent('005852')
         # self.__getPeriodicIncreaseDetial('110022')
-        self.__getYearQuarterIncreaseDetail('570006')
-        '''
+        # self.__getYearQuarterIncreaseDetail('001998')
+        # '''
         periods = ['1M', '3M', '6M', '1Y', '3Y', '5Y', 'all']
 
         fund_list = self.__getFundCodes()
@@ -1382,15 +1384,15 @@ class FundSpider():
             # self.__getFundManagerInfor(fund_code)
             #self.__getFundRankInClass(fund_code)
             #self.__getFundRankInPercent(fund_code)
-            self.__getPeriodicIncreaseDetial(fund_code)
-
+            # self.__getPeriodicIncreaseDetial(fund_code)
+            self.__getYearQuarterIncreaseDetail(fund_code)
             #for j in range(6):
             #    for period in periods:
             #        self.getFundCumIncomeRate(fund_code=fund_code, period=period)
 
             if i % 10 == 0:
                 print ('{}/{}').format(i, count)
-               '''
+                #'''
 
     def getFundCumIncomeRateInLoops(self):
         periods = ['1M', '3M', '6M', '1Y', '3Y', '5Y', 'all']
