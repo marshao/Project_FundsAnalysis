@@ -283,4 +283,18 @@ class tb_FundYearQuarterIncreaseDetail(Base):
     cls_tal_2009 = Column(Integer, nullable=True)
 '''
 
+
+class tb_FundShareAssetChg(Base):
+    __tablename__ = 'tb_FundShareAssetChg'
+    fund_code = Column(String(10), ForeignKey(tb_FundList.c.fund_code), primary_key=True)
+    quote_date = Column(DateTime(), primary_key=True)
+    fund_type = Column(String(20), nullable=True)
+    period_long = Column(DECIMAL(20, 4), nullable=True)
+    period_short = Column(DECIMAL(20, 4), nullable=True)
+    period_end_shares = Column(DECIMAL(20, 4), nullable=True)
+    period_end_asset = Column(DECIMAL(20, 4), nullable=True)
+    period_chg_rate = Column(DECIMAL(8, 4), nullable=True)
+
+
+
 Base.metadata.create_all(db_engine)

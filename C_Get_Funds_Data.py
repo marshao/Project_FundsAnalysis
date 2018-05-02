@@ -23,7 +23,7 @@ from sqlalchemy.dialects.mysql import insert
 from sqlalchemy import bindparam, delete
 import pickle
 import multiprocessing as mp
-import json
+import codecs
 
 
 class FundSpider():
@@ -1321,9 +1321,6 @@ class FundSpider():
 
     def __getFundSharesAssetChg(self, fund_code=None, period=None, model=None):
 
-        # Setting Table Name
-        tb_FundYearQuarterIncreaseDetail = self.db_server.getTable('tb_FundYearQuarterIncreaseDetail')
-
         # setting URL
         fund_url = 'http://fund.eastmoney.com/f10/FundArchivesDatas.aspx?type=gmbd&mode=0&code={}'.format(fund_code)
         # Define error_list
@@ -1331,7 +1328,8 @@ class FundSpider():
 
         try:
             res = self.__getURL(url=fund_url)
-            data = res.text.encode('utf-8')
+            # data = res.text.encode('utf-8')
+            data = res.text
 
             # Split datas in rows
             data = data[(data.find('"data":') + 9):-4]
@@ -1343,53 +1341,57 @@ class FundSpider():
 
         try:
             sql_param = []
-            for row in rows[0:1]:
+            for row in rows:
                 result = {}
-                items = row.split(',')
+                # Setting default values
+                result['fund_code'] = fund_code
+                result['quote_date'] = None
+                result['period_long'] = None
+                result['period_short'] = None
+                result['period_end_shares'] = None
+                result['period_end_asset'] = None
+                result['period_chg_rate'] = None
+                result['fund_type'] = None
+
+                items = row.split(', ')  #comma+space as seperation code incase comma shows as part of data
                 for item in items:
                     units = item.split(':')
-                    name = units[0].replace('"', '')
-                    data = units[1].replace('"', '')
-                    result['fund_code'] = fund_code
+                    name = units[0].replace('"', '').strip()
+                    data = units[1].replace('"', '').strip()
 
-                    if name != 'BZDM': print data
-                    '''
-                    if name == '_id':
-                        print 'here'
-                        result['fund_code'] = fund_code
-                    elif name == 'FSRQ':
-                        result['quote_date'] = self.__dateChtoEng(data)
+                    if name == 'FSRQ':
+                        result['quote_date'] = "'{}'".format(self.__dateChtoEng(data))
                     elif name == 'QJSG':
-                        result['period_long'] = float(data)
+                        result['period_long'] = float(data) if data != '' else None
                     elif name == 'QJSH':
-                        result['period_short'] = float(data)
+                        result['period_short'] = float(data) if data != '' else None
                     elif name == 'QMZFE':
-                        result['period_end_shares'] = float(data)
+                        result['period_end_shares'] = float(data) if data != '' else None
                     elif name == 'NETNAV':
-                        result['period_end_asset'] = float(data)
+                        result['period_end_asset'] = float(data) if data != '' else None
                     elif name == 'CHANGE':
-                        result['period_chg_rate'] = float(data)
+                        result['period_chg_rate'] = float(data) if data != '' else None
                     elif name == 'FTYPE':
-                        result['period_short'] = data
+                        pass
+                        #result['fund_type'] = data #codecs.encode(codecs.decode(data, 'utf-8'), 'ascii')
                     else:
                         pass
-                    '''
                 sql_param.append(result)
-            print sql_param
+                #print sql_param
         except  Exception as e:
             print ('parser web contents', fund_code, e)
             error_funds.append(['parserWebContents', fund_code])
-        '''
+
         try:
             upsert_stat = self.db_server.buildQuery(func='upsert', parameters=sql_param,
-                                                    des_table_name='tb_FundYearQuarterIncreaseDetail')
+                                                    des_table_name='tb_FundShareAssetChg')
             self.db_server.processData(func='upsert', sql_script=upsert_stat)
             print "{} is done".format(fund_code)
         except  Exception as e:
             print ('save contents', fund_code, e)
             error_funds.append(['saveWebContents', fund_code])
-        self.__toPickles(error_funds, 'error_funds_periodic_increase_detail.ticker')
-        '''
+        self.__toPickles(error_funds, 'error_funds_Share_Asset_chg.ticker')
+
         return
 
     def __getFundDivident(self, fund_code=None, quote_time=None, func=None):
@@ -1443,8 +1445,8 @@ class FundSpider():
         # self.__getFundRankInClass('570006')
         # self.__getFundRankInPercent('005852')
         # self.__getPeriodicIncreaseDetial('110022')
-        # self.__getYearQuarterIncreaseDetail('001998')
-        self.__getFundSharesAssetChg('110022')
+        # self.__getYearQuarterIncreaseDetail('501008')
+        self.__getFundSharesAssetChg('040035')
         '''
         periods = ['1M', '3M', '6M', '1Y', '3Y', '5Y', 'all']
 
@@ -1452,16 +1454,17 @@ class FundSpider():
         count = len(fund_list)
         for i in range(count):
             fund_code = fund_list[i][0]
-            self.__getFundBaseInfor(fund_code)
-            self.__getFundNetValue(fund_code)
-            self.__getFundManagerInfor(fund_code)
-            self.__getFundRankInClass(fund_code)
-            self.__getFundRankInPercent(fund_code)
-            self.__getPeriodicIncreaseDetial(fund_code)
-            self.__getYearQuarterIncreaseDetail(fund_code)
-            for j in range(6):
-                for period in periods:
-                    self.getFundCumIncomeRate(fund_code=fund_code, period=period)
+            #self.__getFundBaseInfor(fund_code)
+            #self.__getFundNetValue(fund_code)
+            #self.__getFundManagerInfor(fund_code)
+            #self.__getFundRankInClass(fund_code)
+            #self.__getFundRankInPercent(fund_code)
+            #self.__getPeriodicIncreaseDetial(fund_code)
+            #self.__getYearQuarterIncreaseDetail(fund_code)
+            self.__getFundSharesAssetChg(fund_code)
+            #for j in range(6):
+            #    for period in periods:
+            #        self.getFundCumIncomeRate(fund_code=fund_code, period=period)
 
             if i % 10 == 0:
                 print ('{}/{}').format(i, count)
