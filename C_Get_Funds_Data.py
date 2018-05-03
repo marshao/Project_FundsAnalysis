@@ -474,13 +474,15 @@ class FundSpider():
             return data
 
     def __dateChtoEng(self, data):
-        if data is not None:
+        if (data is not None) and data != '---':
             datestr = filter(str.isdigit, data.encode('utf-8'))
             if len(datestr) == 8:
                 y = int(datestr[0:4])
                 m = int(datestr[4:6])
                 d = int(datestr[6:8])
                 return datetime.datetime(y, m, d)
+        else:
+            return None
 
     def __strToFloat(self, data):
         if data != '':
@@ -1394,23 +1396,130 @@ class FundSpider():
 
         return
 
-    def __getFundDivident(self, fund_code=None, quote_time=None, func=None):
-        pass
+    def __getFundHolderChg(self, fund_code=None, period=None, model=None):
 
-    def __getFundPositionConfiguration(self, fund_code=None, quote_time=None, func=None):
-        pass
+        # setting URL
+        fund_url = 'http://fund.eastmoney.com/f10/FundArchivesDatas.aspx?type=cyrjg&code={}'.format(fund_code)
+        # Define error_list
+        error_funds = []
 
-    def __getFundIndustryConfiguration(self, fund_code=None, quote_time=None, func=None):
-        pass
+        try:
+            res = self.__getURL(url=fund_url)
+            soup = BeautifulSoup(res.text, 'html.parser')
 
-    def __getCapitalConfiguration(self, fund_code=None, quote_time=None, func=None):
-        pass
+        except  Exception as e:
+            # print ('getFundNVFullList', fund_code, e)
+            print ('getWebContents', fund_code, e)
+            error_funds.append(['getWebContents', fund_code])
 
-    def __getFundNetAsset(self, fund_code=None, quote_time=None, func=None):
-        pass
+        try:
 
-    def __getFundFinancialIndicators(self, fund_code=None, quote_time=None, func=None):
-        pass
+            data = soup.find_all("tr")
+
+            if len(data) != 0:  # Make sure the process go through only when there are data
+                data = data[1:]
+            else:
+                return
+
+            sql_param = []
+            for row in data:
+                result = {}
+                items = row.find_all("td")
+                # Setting default values
+                result['fund_code'] = "'{}'".format(fund_code)
+                result['quote_date'] = "'{}'".format(self.__dateChtoEng(items[0].text.replace('-', '')))
+                result['public_possession'] = self.__percentToFloat(items[1].text)
+                result['personal_possession'] = self.__percentToFloat(items[2].text)
+                result['internal_possession'] = self.__percentToFloat(items[3].text)
+                result['total_shares'] = None if (items[4].text == u'---') else float(items[4].text) * 100000000.0
+                sql_param.append(result)
+        except  Exception as e:
+            print ('parser web contents', fund_code, e)
+            error_funds.append(['parserWebContents', fund_code])
+
+        try:
+            upsert_stat = self.db_server.buildQuery(func='upsert', parameters=sql_param,
+                                                    des_table_name='tb_FundHolderChg')
+            self.db_server.processData(func='upsert', sql_script=upsert_stat)
+            print "{} get fund holder chg is done".format(fund_code)
+        except  Exception as e:
+            print ('save contents', fund_code, e)
+            error_funds.append(['saveWebContents', fund_code])
+        self.__toPickles(error_funds, 'error_funds_holder_chg.ticker')
+        return
+
+    def __getFundPositionDetail(self, fund_code=None, period=None, model=None):
+
+        # setting URL to find the year list
+        fund_url = 'http://fund.eastmoney.com/f10/FundArchivesDatas.aspx?type=jjcc&code={}&topline=100'.format(
+            fund_code)
+        # Define error_list
+        error_funds = []
+
+        try:
+            res = self.__getURL(url=fund_url)
+            years = res.text[(res.text.find('arryear') + 9):(res.text.find('curyear') - 2)].encode('utf-8').split(',')
+
+        except  Exception as e:
+            # print ('getFundNVFullList', fund_code, e)
+            print ('getContentYears', fund_code, e)
+            error_funds.append(['getContentYears', fund_code])
+
+        # Get contents
+        try:
+            sql_param = []
+            # Get contents by year
+            for year in years:
+                # setting URL to find the year list
+                fund_url = 'http://fund.eastmoney.com/f10/FundArchivesDatas.aspx?type=jjcc&code={}&topline=100&year={}'.format(
+                    fund_code, year)
+                # Define error_list
+                error_funds = []
+                res = self.__getURL(url=fund_url)
+                soup = BeautifulSoup(res.text, 'html.parser')
+                boxes = soup.find_all(attrs={'class': "box"})
+
+                for box in boxes:
+                    result = {}
+                    quote_date = box.find('label', attrs={'class': "right lab2 xq656"}).find('font').text
+                    result['fund_code'] = "'{}'".format(fund_code)
+                    result['quote_date'] = "'{}'".format(self.__dateChtoEng(quote_date.replace('-', '')))
+
+                    rows = box.find('tbody').find_all('tr')
+
+                    # Get the top 20 records at most
+                    if len(rows) <= 20:
+                        max_records = len(rows)
+                    else:
+                        max_records = 20
+
+                    for i in range(0, max_records):
+                        items = rows[i].find_all('td')
+                        list_len = len(items)  # Length of list varies
+                        result['stock_code_' + str(i + 1)] = "'{}'".format(items[1].text)
+                        # result['stock_name_'+ str(i+1)] = "'{}'".format(items[2].text.decode('ascii').encode('utf-8'))
+                        result['stock_portion_in_NV_' + str(i + 1)] = self.__percentToFloat(items[list_len - 3].text)
+                        result['stock_amount_' + str(i + 1)] = None if (items[list_len - 2].text == u'---') else float(
+                            items[list_len - 2].text.replace(',', '')) * 10000.00
+                        result['stock_value_' + str(i + 1)] = None if (items[list_len - 1].text == u'---') else float(
+                            items[list_len - 1].text.replace(',', '')) * 10000.00
+                    sql_param.append(result)
+                    # print sql_param[1:2]
+        except  Exception as e:
+            print ('getYearlyContent', fund_code, e)
+            error_funds.append(['getYearlyContent', fund_code])
+
+        try:
+            upsert_stat = self.db_server.buildQuery(func='upsert', parameters=sql_param,
+                                                    des_table_name='tb_FundPositionDetail')
+            self.db_server.processData(func='upsert', sql_script=upsert_stat)
+            print "{} get Postion Detail is done".format(fund_code)
+        except  Exception as e:
+            print ('save contents', fund_code, e)
+            error_funds.append(['saveWebContents', fund_code])
+        self.__toPickles(error_funds, 'error_funds_holder_chg.ticker')
+
+        return
 
     def __toPickles(self, data, path):
         with open(path, 'ab') as f:
@@ -1447,7 +1556,9 @@ class FundSpider():
         # self.__getPeriodicIncreaseDetial('110022')
         # self.__getYearQuarterIncreaseDetail('501008')
         # self.__getFundSharesAssetChg('040035')
-        # '''
+        # self.__getFundHolderChg('501008')
+        # self.__getFundPositionDetail('110022')
+        #'''
         periods = ['1M', '3M', '6M', '1Y', '3Y', '5Y', 'all']
 
         fund_list = self.__getFundCodes()
@@ -1460,8 +1571,10 @@ class FundSpider():
             #self.__getFundRankInClass(fund_code)
             #self.__getFundRankInPercent(fund_code)
             #self.__getPeriodicIncreaseDetial(fund_code)
-            self.__getYearQuarterIncreaseDetail(fund_code)
-            self.__getFundSharesAssetChg(fund_code)
+            # self.__getYearQuarterIncreaseDetail(fund_code)
+            # self.__getFundSharesAssetChg(fund_code)
+            # self.__getFundHolderChg(fund_code)
+            self.__getFundPositionDetail(fund_code)
             #for j in range(6):
             #    for period in periods:
             #        self.getFundCumIncomeRate(fund_code=fund_code, period=period)
