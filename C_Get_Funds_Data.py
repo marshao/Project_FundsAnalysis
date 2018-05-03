@@ -1280,7 +1280,7 @@ class FundSpider():
                     columns.append(c + p)
 
             result = {}
-            result['fund_code'] = fund_code
+            result['fund_code'] = "'{}'".format(fund_code)
             for i in range(len(data)):
 
                 items = data[i].find_all("td")
@@ -1311,7 +1311,7 @@ class FundSpider():
             upsert_stat = self.db_server.buildQuery(func='upsert', parameters=sql_param,
                                                     des_table_name='tb_FundYearQuarterIncreaseDetail')
             self.db_server.processData(func='upsert', sql_script=upsert_stat)
-            print "{} is done".format(fund_code)
+            print "{} get periodic increase is done".format(fund_code)
         except  Exception as e:
             print ('save contents', fund_code, e)
             error_funds.append(['saveWebContents', fund_code])
@@ -1344,7 +1344,7 @@ class FundSpider():
             for row in rows:
                 result = {}
                 # Setting default values
-                result['fund_code'] = fund_code
+                result['fund_code'] = "'{}'".format(fund_code)
                 result['quote_date'] = None
                 result['period_long'] = None
                 result['period_short'] = None
@@ -1386,7 +1386,7 @@ class FundSpider():
             upsert_stat = self.db_server.buildQuery(func='upsert', parameters=sql_param,
                                                     des_table_name='tb_FundShareAssetChg')
             self.db_server.processData(func='upsert', sql_script=upsert_stat)
-            print "{} is done".format(fund_code)
+            print "{} getFundAssets is done".format(fund_code)
         except  Exception as e:
             print ('save contents', fund_code, e)
             error_funds.append(['saveWebContents', fund_code])
@@ -1446,8 +1446,8 @@ class FundSpider():
         # self.__getFundRankInPercent('005852')
         # self.__getPeriodicIncreaseDetial('110022')
         # self.__getYearQuarterIncreaseDetail('501008')
-        self.__getFundSharesAssetChg('040035')
-        '''
+        # self.__getFundSharesAssetChg('040035')
+        # '''
         periods = ['1M', '3M', '6M', '1Y', '3Y', '5Y', 'all']
 
         fund_list = self.__getFundCodes()
@@ -1460,7 +1460,7 @@ class FundSpider():
             #self.__getFundRankInClass(fund_code)
             #self.__getFundRankInPercent(fund_code)
             #self.__getPeriodicIncreaseDetial(fund_code)
-            #self.__getYearQuarterIncreaseDetail(fund_code)
+            self.__getYearQuarterIncreaseDetail(fund_code)
             self.__getFundSharesAssetChg(fund_code)
             #for j in range(6):
             #    for period in periods:
@@ -1468,7 +1468,7 @@ class FundSpider():
 
             if i % 10 == 0:
                 print ('{}/{}').format(i, count)
-                '''
+                #'''
 
     def getFundCumIncomeRateInLoops(self):
         periods = ['1M', '3M', '6M', '1Y', '3Y', '5Y', 'all']

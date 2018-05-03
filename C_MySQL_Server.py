@@ -97,6 +97,7 @@ class MySQLServer():
             MySQLServer.session.execute(sql_script, parameter)
         elif (type(sql_script) != 'str') and (parameter is None):
             for each_sql in sql_script:
+                # print each_sql
                 MySQLServer.session.execute(each_sql)
         else:
             MySQLServer.session.execute(sql_script)
@@ -139,7 +140,7 @@ class MySQLServer():
             upsert_stats.append(upsert_stat)
 
         if func == 'upsert':
-            print upsert_stat
+            #print upsert_stat
             return upsert_stats
         else:
             return insert_stats
