@@ -454,7 +454,7 @@ class FundSpider():
         return data
 
     def __percentToFloat(self, data):
-        if data.find('--') != -1:
+        if (data.find('--') != -1) or (data == ''):
             data = None
         else:
             try:
@@ -1521,6 +1521,85 @@ class FundSpider():
 
         return
 
+    def __getFundIndustryConfig(self, fund_code=None, quote_time=None, func=None):
+
+        error_funds = []
+        year = ''
+        fund_url = 'http://api.fund.eastmoney.com/f10/HYPZ'
+        header = {'Referer': 'http://fund.eastmoney.com/f10/jjjz_%s.html' % fund_code,
+                  'connnection': 'keep-alive',
+                  }
+
+        parameters = (
+            ('\n\ncallback', 'jQuery1830809997740957868_1524128676620'),
+            ('fundCode', fund_code),
+            ('year', year),
+        )
+        try:
+            res = self.__getURL_NV(url=fund_url, header=header, params=parameters)
+            years = res.text[(res.text.find('"ListYears"') + 13):(res.text.find('"ErrCode"') - 3)].replace('"',
+                                                                                                           '').split(
+                ',')
+        except  Exception as e:
+            print ('getFundIndustryConfig Year Error', fund_code)
+            error_funds.append(['getIndustryConfig Year Error', fund_code])
+            return
+
+        try:
+            sql_param = []
+            for year in years:
+                parameters = (
+                    ('\n\ncallback', 'jQuery1830809997740957868_1524128676620'),
+                    ('fundCode', fund_code),
+                    ('year', year),
+                )
+                res = self.__getURL_NV(url=fund_url, header=header, params=parameters)
+                data = res.text[(res.text.find('"QuarterInfos"') + 17):(res.text.find('"Curyear"') - 5)]
+                quarter_datas = data.split('"Quarter"')[1:]  # first element is useless
+
+                for quarter_data in quarter_datas:
+                    # first element is useless
+                    rows = quarter_data.split('"BZDM"')[1:]
+                    result = {}
+                    result['fund_code'] = '"{}"'.format(fund_code)
+
+                    # Want only first 10 industry cleasses
+                    if len(rows) >= 10:
+                        max_row = 10
+                    else:
+                        max_row = len(rows)
+                    for i in range(max_row):
+                        # Break row into Dict
+                        temp = {}
+                        row = rows[i]
+                        for unit in row.split(',"'):
+                            unit = unit.replace('"', '')
+                            parts = unit.split(':')
+                            temp[parts[0]] = parts[1]
+
+                        result['quote_date'] = "'{}'".format(self.__dateChtoEng(temp['FSRQ'].replace('-', '')))
+                        result['c_name_' + '{}'.format(i + 1)] = "'{}'".format(temp['SHORTNAME'])
+                        result['c_portion_' + '{}'.format(i + 1)] = self.__percentToFloat(temp['ZJZBL'])
+                        result['c_market_value_' + '{}'.format(i + 1)] = None if (
+                        temp['SZ'].find('-') != -1) else float(temp['SZ']) * 10000.0
+                    sql_param.append(result)
+
+        except  Exception as e:
+            print ('gFundIndustryConfig Data Err', fund_code, e)
+            # print ('getFundNavRecordsDetail', fund_code)
+
+        # try:
+        upsert_stat = self.db_server.buildQuery(func='upsert', parameters=sql_param,
+                                                des_table_name='tb_FundYearlyIndustryConfig')
+        self.db_server.processData(func='upsert', sql_script=upsert_stat)
+        # print "{} get Indutry Config Detail is done".format(fund_code)
+        # except  Exception as e:
+        #    print ('save contents', fund_code, e)
+        #    error_funds.append(['saveWebContents', fund_code])
+        # self.__toPickles(error_funds, 'error_funds_industry_config.ticker')
+
+        return
+
     def __toPickles(self, data, path):
         with open(path, 'ab') as f:
             pickle.dump(data, f)
@@ -1558,6 +1637,7 @@ class FundSpider():
         # self.__getFundSharesAssetChg('040035')
         # self.__getFundHolderChg('501008')
         # self.__getFundPositionDetail('110022')
+        # self.__getFundIndustryConfig('110022')
         #'''
         periods = ['1M', '3M', '6M', '1Y', '3Y', '5Y', 'all']
 
@@ -1574,7 +1654,8 @@ class FundSpider():
             # self.__getYearQuarterIncreaseDetail(fund_code)
             # self.__getFundSharesAssetChg(fund_code)
             # self.__getFundHolderChg(fund_code)
-            self.__getFundPositionDetail(fund_code)
+            # self.__getFundPositionDetail(fund_code)
+            self.__getFundIndustryConfig(fund_code)
             #for j in range(6):
             #    for period in periods:
             #        self.getFundCumIncomeRate(fund_code=fund_code, period=period)

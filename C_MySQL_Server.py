@@ -13,6 +13,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import Table, MetaData, exists, update, and_, select, bindparam
 from sqlalchemy.dialects.mysql import insert
+import sys
+
+reload(sys)
+sys.setdefaultencoding('utf-8')
 
 
 class MySQLServer():
@@ -127,9 +131,9 @@ class MySQLServer():
             params = {k: v for k, v in parameter.items() if v is not None}
 
             cols = ','.join([key for key, value in params.items()])
+
             vals = '{}'.format(
-                ','.join([(str(value) if (type(value) != 'unicode') else value) for key, value in params.items()]))
-            # vals = '{}'.format(','.join([str(value) for key, value in parameters.items()]))
+                ','.join([str(value) if isinstance(value, float) else value for key, value in params.items()]))
 
             up_vals = ','.join('{} = {}'.format(key, str(value)) for (key, value) in params.items())
 
