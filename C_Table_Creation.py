@@ -448,4 +448,16 @@ class tb_FundYearlyIndustryConfig(Base):
     c_market_value_10 = Column(DECIMAL(20, 4), nullable=True)
 
 
+class tb_HistoryIndices(Base):
+    __tablename__ = 'tb_HistoryIndices'
+    indice_name = Column(String(10), primary_key=True)
+    quote_date = Column(DateTime(), primary_key=True)
+    open = Column(DECIMAL(20, 10), nullable=True)
+    close = Column(DECIMAL(20, 10), nullable=True)
+    adjclose = Column(DECIMAL(20, 10), nullable=True)
+    high = Column(DECIMAL(20, 10), nullable=True)
+    low = Column(DECIMAL(20, 10), nullable=True)
+    volume = Column(DECIMAL(30, 10), nullable=True)
+
+
 Base.metadata.create_all(db_engine)

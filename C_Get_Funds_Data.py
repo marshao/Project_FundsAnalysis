@@ -1572,13 +1572,14 @@ class FundSpider():
                         # Break row into Dict
                         temp = {}
                         row = rows[i]
+                        #print row
                         for unit in row.split(',"'):
                             unit = unit.replace('"', '')
                             parts = unit.split(':')
                             temp[parts[0]] = parts[1]
 
                         result['quote_date'] = "'{}'".format(self.__dateChtoEng(temp['FSRQ'].replace('-', '')))
-                        result['c_name_' + '{}'.format(i + 1)] = "'{}'".format(temp['SHORTNAME'])
+                        result['c_name_' + '{}'.format(i + 1)] = "'{}'".format(temp['HYMC'])
                         result['c_portion_' + '{}'.format(i + 1)] = self.__percentToFloat(temp['ZJZBL'])
                         result['c_market_value_' + '{}'.format(i + 1)] = None if (
                         temp['SZ'].find('-') != -1) else float(temp['SZ']) * 10000.0
@@ -1637,7 +1638,7 @@ class FundSpider():
         # self.__getFundSharesAssetChg('040035')
         # self.__getFundHolderChg('501008')
         # self.__getFundPositionDetail('110022')
-        # self.__getFundIndustryConfig('110022')
+        #self.__getFundIndustryConfig('110022')
         #'''
         periods = ['1M', '3M', '6M', '1Y', '3Y', '5Y', 'all']
 
