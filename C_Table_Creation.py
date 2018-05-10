@@ -450,7 +450,7 @@ class tb_FundYearlyIndustryConfig(Base):
 
 class tb_HistoryIndices(Base):
     __tablename__ = 'tb_HistoryIndices'
-    indice_name = Column(String(10), primary_key=True)
+    idx_name = Column(String(10), primary_key=True)
     quote_date = Column(DateTime(), primary_key=True)
     open = Column(DECIMAL(20, 10), nullable=True)
     close = Column(DECIMAL(20, 10), nullable=True)

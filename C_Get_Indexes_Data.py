@@ -161,78 +161,96 @@ class StockIndexesSpider():
         print df
         return
 
-    def __getIndices(self, fund_code=None, period=None, model=None):
-        tickers = ['GSPC', 'DJI', 'IXIC', 'NYA', 'XAX', 'BATSK', 'RUT', 'VIX', 'FTSE',
-                   'GDAXI', 'FCHI', 'MICEXINDEXCF.ME', 'N225', 'KS11', 'AXJO', 'TWII'
-                                                                               'GSPTSE', 'IPSA', 'TA100', '000001.SS',
-                   '000016.SS', '000300.SZ',
-                   '399006.SZ', '399001.SZ']
+    def __getIndices(self):
+        ticker_sets = [['GSPC', 'DJI', 'IXIC', 'NYA', 'XAX', 'RUT', 'VIX', 'FTSE',
+                        'GDAXI', 'FCHI', 'N225', 'KS11', 'AXJO', 'TWII', 'GSPTSE', 'IPSA'],
+                       ['000001.SS', '000016.SS', '000300.SS', '399001.SZ',
+                        'MICEXINDEXCF.ME', 'TWIIGSPTSE']]
+
         # dtime = datetime.datetime.strptime('2018-05-01 00:00:00', '%Y-%m-%d %H:%M:%S')
         # cdate = time.mktime(dtime.timetuple())
         # begin = -631008000 #(1950-01-01)
-        begin = 1199116800  # (2008-01-01)
         # begin = 1514736000 #(2018-01-01)
         # begin = 1525104000 #(2018-05-01)
         end = 1525708800  # (2018-05-08)
-
+        begin = 1199116800  # (2008-01-01)
         interval = '1d'
         error_funds = []
-        for ticker in tickers[0:1]:
-            try:
-                # setting URL
-                fund_url = 'https://query1.finance.yahoo.com/v8/finance/chart/%5E{}?formatted=true' \
-                           '&period1={}&period2={}&interval={}&events=div%7Csplit'.format(ticker, begin, end, interval)
 
-                res = self.__getURL(url=fund_url, proxy=1)
-                data = res.text
-            except  Exception as e:
-                # print ('getFundNVFullList', fund_code, e)
-                print ('getWebContents', fund_code, e)
+        for i in range(1, 2):
+            tickers = ticker_sets[i]
+            for ticker in tickers:
+                fund_url = self.__idx_yahoo_url(ticker, begin, end, interval, i)
+                try:
+                    res = self.__getURL(url=fund_url, proxy=1)
+                    data = res.text
+                    result, error_funds = self.__process_idx_yahoo_data(data, ticker, error_funds)
+                    sql_param, error_funds = self.__build_sql_param(ticker, result, error_funds)
+                    self.__save_idx_data(ticker, sql_param, error_funds)
+                except  Exception as e:
+                    # print ('getFundNVFullList', fund_code, e)
+                    print ('getWebContents', ticker, e)
+        return
 
-            try:
-                result = {}
-                result['idic_name'] = ticker
-                result['time_stamp'] = data[data.find('"timestamp"') + 13: data.find('"indicators"') - 2].split(',')
-                result['time_stamp'] = [datetime.datetime.fromtimestamp(float(val)) for val in result['time_stamp']]
-                rows = data[data.find('"indicators"') + 24: data.find('"error"') - 6].encode('utf-8')
-                rows = rows.replace('"', '').replace('[{adjclose:', '').replace('}]', '').replace('[', '')
-                rows = rows.split(']')
-                for row in rows[:-1]:
-                    key = row[:row.find(':')].replace(',', '')
-                    value = row[row.find(':') + 1:].split(',')
-                    result[key] = value
+    def __idx_yahoo_url(self, ticker, begin, end, interval, i):
+        fund_url_0 = 'https://query1.finance.yahoo.com/v8/finance/chart/%5E{}?formatted=true' \
+                     '&period1={}&period2={}&interval={}&events=div%7Csplit'.format(ticker, begin, end, interval)
 
+        fund_url_1 = 'https://query1.finance.yahoo.com/v8/finance/chart/{}?formatted=true' \
+                     '&period1={}&period2={}&interval={}&events=div%7Csplit'.format(ticker, begin, end, interval)
+        fund_url_sets = [fund_url_0, fund_url_1]
+        return fund_url_sets[i]
 
-            except  Exception as e:
-                print ('parser indice web data', ticker, e)
-                error_funds.append(['parser indice web data', ticker])
+    def __process_idx_yahoo_data(self, data, ticker, error_funds):
+        try:
+            result = {}
+            # print data
+            result['idx_name'] = ticker
+            result['time_stamp'] = data[data.find('"timestamp"') + 13: data.find('"indicators"') - 2].split(',')
+            result['time_stamp'] = [datetime.datetime.fromtimestamp(float(val)).strftime('%Y-%m-%d %H:%M:%S') for val in
+                                    result['time_stamp']]
+            rows = data[data.find('"indicators"') + 24: data.find('"error"') - 6].encode('utf-8')
+            rows = rows.replace('"', '').replace('[{adjclose:', '').replace('}]', '').replace('[', '')
+            rows = rows.split(']')
+            for row in rows[:-1]:
+                key = row[:row.find(':')].replace(',', '')
+                value = row[row.find(':') + 1:].split(',')
+                result[key] = value
+        except  Exception as e:
+            print ('parser indice web data', ticker, e)
+            error_funds.append(['parser indice web data', ticker])
 
-            try:
-                sql_param = []
-                for i in range(len(result['time_stamp'])):
-                    param = {}
-                    param['idice_name'] = ticker
-                    param['time_stamp'] = result['time_stamp'][i]
-                    param['open'] = result['open'][i]
-                    param['close'] = result['close'][i]
-                    param['adjclose'] = result['adjclose'][i]
-                    param['high'] = result['high'][i]
-                    param['low'] = result['low'][i]
-                    param['volume'] = result['volume'][i]
-                    sql_param.append(param)
-            except  Exception as e:
-                print ('build indice sql params', ticker, e)
-                error_funds.append(['build indice sql params', ticker])
+        return result, error_funds
 
-            try:
-                upsert_stat = self.db_server.buildQuery(func='upsert', parameters=sql_param,
-                                                        des_table_name='tb_HistoryIndices')
-                self.db_server.processData(func='upsert', sql_script=upsert_stat)
-                print "{} is processed ".format(ticker)
-            except  Exception as e:
-                error_funds.append(['saveIndicesContents', ticker])
-                # self.__toPickles(error_funds, 'error_history_indices.ticker')
+    def __build_sql_param(self, ticker, result, error_funds):
+        try:
+            sql_param = []
+            for i in range(len(result['time_stamp'])):
+                param = {}
+                param['idx_name'] = '"{}"'.format(ticker)
+                param['quote_date'] = '"{}"'.format(result['time_stamp'][i])
+                param['open'] = result['open'][i]
+                param['close'] = result['close'][i]
+                param['adjclose'] = result['adjclose'][i]
+                param['high'] = result['high'][i]
+                param['low'] = result['low'][i]
+                param['volume'] = result['volume'][i]
+                sql_param.append(param)
+        except  Exception as e:
+            print ('build indice sql params', ticker, e)
+            error_funds.append(['build indice sql params', ticker])
+        return sql_param, error_funds
 
+    def __save_idx_data(self, ticker, sql_param, error_funds):
+        try:
+            upsert_stat = self.db_server.buildQuery(func='upsert', parameters=sql_param,
+                                                    des_table_name='tb_HistoryIndices')
+            self.db_server.processData(func='upsert', sql_script=upsert_stat)
+            print "{} is processed ".format(ticker)
+        except  Exception as e:
+            print ('data saving error ', e)
+            error_funds.append(['saveIndicesContents', ticker])
+            # self.__toPickles(error_funds, 'error_history_indices.ticker')
         return
 
     def getData(self):
