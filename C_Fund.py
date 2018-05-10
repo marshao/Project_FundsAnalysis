@@ -63,8 +63,6 @@ class FundInstance(Fund):
         self.bench_mark = self.__getBenchMark(self.fund_code)
 
 
-
-
     def __getFundName(self, fund_code):
         table = self.tb_FundInfo
         stat = select([table.c.fund_name]).where(table.c.fund_code == fund_code)
@@ -72,14 +70,12 @@ class FundInstance(Fund):
         result = self.session.execute(stat).fetchall()
         return result[0][0]
 
-
     def __getFundCode(self, fund_name):
         table = self.tb_FundInfo
         stat = select([table.c.fund_code]).where(table.c.fund_name == fund_name.decode('utf-8'))
         # fund = self.session.query(table).filter_by(fund_code = fund_code)
         result = self.session.execute(stat).fetchall()
         return result[0][0]
-
 
     def __getFundType(self, fund_code):
         table = self.tb_FundInfo

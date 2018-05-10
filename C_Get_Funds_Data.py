@@ -747,7 +747,7 @@ class FundSpider():
 
         return
 
-    def getFundCumIncomeRate(self, fund_code=None, period=None, model=None):
+    def __getFundCumIncomeRate(self, fund_code=None, period=None, model=None):
         '''
             Get fund cumulative income rate by period
             :param fund_code:
@@ -1497,7 +1497,8 @@ class FundSpider():
                         items = rows[i].find_all('td')
                         list_len = len(items)  # Length of list varies
                         result['stock_code_' + str(i + 1)] = "'{}'".format(items[1].text)
-                        # result['stock_name_'+ str(i+1)] = "'{}'".format(items[2].text.decode('ascii').encode('utf-8'))
+                        result['stock_name_' + str(i + 1)] = "'{}'".format(
+                            items[2].text.decode('ascii').encode('utf-8'))
                         result['stock_portion_in_NV_' + str(i + 1)] = self.__percentToFloat(items[list_len - 3].text)
                         result['stock_amount_' + str(i + 1)] = None if (items[list_len - 2].text == u'---') else float(
                             items[list_len - 2].text.replace(',', '')) * 10000.00
@@ -1621,16 +1622,12 @@ class FundSpider():
 
         return wrapper
 
-    def runFunc(self, args):
-        print args
-        # args[0](arg for arg in args[1:])
-
     def getFundInforFromWeb(self, fund_code=None, func=None, quote_time=None, infor=None):
         #self.__getFundManagerInfor('570006')
         #self.__getFundManagerInfor('070018')
         # self.__getFundNetValue('003563')
         #self.__getFundBaseInfor('005488')
-        # self.getFundCumIncomeRate('004473', '6M')
+        # self.__getFundCumIncomeRate('004473', '6M')
         # self.__getFundRankInClass('570006')
         # self.__getFundRankInPercent('005852')
         # self.__getPeriodicIncreaseDetial('110022')
@@ -1646,25 +1643,26 @@ class FundSpider():
         count = len(fund_list)
         for i in range(count):
             fund_code = fund_list[i][0]
-            #self.__getFundBaseInfor(fund_code)
-            #self.__getFundNetValue(fund_code)
-            #self.__getFundManagerInfor(fund_code)
-            #self.__getFundRankInClass(fund_code)
-            #self.__getFundRankInPercent(fund_code)
-            #self.__getPeriodicIncreaseDetial(fund_code)
-            # self.__getYearQuarterIncreaseDetail(fund_code)
-            # self.__getFundSharesAssetChg(fund_code)
-            # self.__getFundHolderChg(fund_code)
-            # self.__getFundPositionDetail(fund_code)
+            self.__getFundBaseInfor(fund_code)
+            self.__getFundNetValue(fund_code)
+            self.__getFundManagerInfor(fund_code)
+            self.__getFundRankInClass(fund_code)
+            self.__getFundRankInPercent(fund_code)
+            self.__getPeriodicIncreaseDetial(fund_code)
+            self.__getYearQuarterIncreaseDetail(fund_code)
+            self.__getFundSharesAssetChg(fund_code)
+            self.__getFundHolderChg(fund_code)
+            self.__getFundPositionDetail(fund_code)
             self.__getFundIndustryConfig(fund_code)
-            #for j in range(6):
-            #    for period in periods:
-            #        self.getFundCumIncomeRate(fund_code=fund_code, period=period)
+            for j in range(6):
+                for period in periods:
+                    self.__getFundCumIncomeRate(fund_code=fund_code, period=period)
 
             if i % 10 == 0:
                 print ('{}/{}').format(i, count)
                 #'''
 
+    '''
     def getFundCumIncomeRateInLoops(self):
         periods = ['1M', '3M', '6M', '1Y', '3Y', '5Y', 'all']
         fund_list = self.__getFundCodes()
@@ -1691,7 +1689,7 @@ class FundSpider():
         param_t = zip(param_fund_codes, param_periods)
 
         mp_runner(param_t)
-
+        '''
 
 def main():
     fspider = FundSpider()
@@ -1700,9 +1698,13 @@ def main():
     fspider.getFundInforFromWeb()
 
 
+if __name__ == "__main__":
+    main()
+
+'''
 def run_mp(params):
     fs = FundSpider()
-    return fs.getFundCumIncomeRate(params[0], params[1])
+    return fs.__getFundCumIncomeRate(params[0], params[1])
 
 
 def mp_runner(params):
@@ -1710,6 +1712,4 @@ def mp_runner(params):
     pool.map_async(run_mp, params)
     pool.close()
     pool.join()
-
-if __name__ == "__main__":
-    main()
+'''
