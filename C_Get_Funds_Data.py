@@ -573,7 +573,7 @@ class FundSpider():
 
             # stat = [upsert_stat, upsert_stat]
             self.db_server.processData(func='upsert', sql_script=upsert_stat, parameter=parameters)
-
+            print ('{} get fund manager infor is done'.format(fund_code))
         except  Exception as e:
             print ('getFundManagers2 DB Saving', fund_code)
             #print ('getFundManagers2', result['fund_code'], e)
@@ -739,7 +739,7 @@ class FundSpider():
             # stat = [upsert_stat, upsert_stat]
 
             self.db_server.processData(func='upsert', sql_script=upsert_stat, parameter=sql_param)
-
+            print ('{} get fund net value is done'.format(fund_code))
         except  Exception as e:
             print ('getFundNavSaving Error', fund_code, sql_param, e)
             #print ('getFundNavSaving Error', fund_code)
@@ -798,6 +798,7 @@ class FundSpider():
             res = self.__getURL(url=fund_url)
             # soup = BeautifulSoup(res.text, 'html.parser')
             record = re.findall('"(.*?)"', res.text)
+            # print record[0]
             records = record[0].split('|')
         except  Exception as e:
             # print ('getFundNVFullList', fund_code, e)
@@ -806,17 +807,18 @@ class FundSpider():
 
         sql_param = []
         try:
+            #print records
             for item in records:
-                # build two dictionaries to break and convert data
-                result = {}
-                unit = item.split('_')
-                result['fund_code'] = fund_code
-                result['quote_date'] = self.__dateChtoEng(unit[0].replace('/', ''))
-                result['fund_cum_income_rate'] = float(unit[1].encode('utf-8'))
-                result['sh300idx_cum_income_rate'] = float(unit[2].encode('utf-8'))
-                result['shidx_cum_income_rate'] = float(unit[3].encode('utf-8'))
-
-                sql_param.append(result)
+                if len(item) > 14:
+                    # build two dictionaries to break and convert data
+                    result = {}
+                    unit = item.split('_')
+                    result['fund_code'] = fund_code
+                    result['quote_date'] = self.__dateChtoEng(unit[0].replace('/', ''))
+                    result['fund_cum_income_rate'] = float(unit[1].encode('utf-8'))
+                    result['sh300idx_cum_income_rate'] = float(unit[2].encode('utf-8'))
+                    result['shidx_cum_income_rate'] = float(unit[3].encode('utf-8'))
+                    sql_param.append(result)
         except  Exception as e:
             print ('parser web contents', fund_code, period, e)
             error_funds.append(['parserWebContents', fund_code, period])
@@ -845,7 +847,7 @@ class FundSpider():
                 self.db_server.processData(func='insert', sql_script=insert_stat, parameter=sql_param)
             else:
                 self.db_server.processData(func='upsert', sql_script=upsert_stat, parameter=sql_param)
-
+            print ('{} get fund {} cum rate is done'.format(fund_code, period))
         except  Exception as e:
             print ('save contents', fund_code, period, e)
             error_funds.append(['saveWebContents', fund_code, period])
@@ -915,7 +917,7 @@ class FundSpider():
                     self.db_server.processData(func='insert', sql_script=insert_stat, parameter=sql_param)
                 else:
                     self.db_server.processData(func='upsert', sql_script=upsert_stat, parameter=sql_param)
-
+                print ('{} get fund rank in class is done'.format(fund_code))
             except  Exception as e:
                 print ('save contents', fund_code, period, e)
                 error_funds.append(['saveWebContents', fund_code, period])
@@ -987,7 +989,7 @@ class FundSpider():
                     self.db_server.processData(func='insert', sql_script=insert_stat, parameter=sql_param)
                 else:
                     self.db_server.processData(func='upsert', sql_script=upsert_stat, parameter=sql_param)
-
+                print ('{} get fund rank in percent is done'.format(fund_code))
             except  Exception as e:
                 print ('save contents', fund_code, period, e)
                 error_funds.append(['saveWebContents', fund_code, period])
@@ -1228,7 +1230,7 @@ class FundSpider():
             )
 
             self.db_server.processData(func='upsert', sql_script=upsert_stat, parameter=sql_param)
-
+            print ('{} get fund periodic increase is done'.format(fund_code))
         except  Exception as e:
             print ('save contents', fund_code, e)
             error_funds.append(['saveWebContents', fund_code])
@@ -1627,11 +1629,11 @@ class FundSpider():
         #self.__getFundManagerInfor('070018')
         # self.__getFundNetValue('003563')
         #self.__getFundBaseInfor('005488')
-        # self.__getFundCumIncomeRate('004473', '6M')
+        #self.__getFundCumIncomeRate('003816', '1M', model='del')
         # self.__getFundRankInClass('570006')
         # self.__getFundRankInPercent('005852')
         # self.__getPeriodicIncreaseDetial('110022')
-        # self.__getYearQuarterIncreaseDetail('501008')
+        #self.__getYearQuarterIncreaseDetail('501008')
         # self.__getFundSharesAssetChg('040035')
         # self.__getFundHolderChg('501008')
         # self.__getFundPositionDetail('110022')
@@ -1655,8 +1657,10 @@ class FundSpider():
             self.__getFundPositionDetail(fund_code)
             self.__getFundIndustryConfig(fund_code)
             for j in range(6):
+                time.sleep(1)
                 for period in periods:
-                    self.__getFundCumIncomeRate(fund_code=fund_code, period=period)
+                    time.sleep(0.5)
+                    self.__getFundCumIncomeRate(fund_code=fund_code, period=period, model='del')
 
             if i % 10 == 0:
                 print ('{}/{}').format(i, count)
