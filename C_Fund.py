@@ -27,6 +27,7 @@ class Fund():
         self.tb_FundManagerHistory = db_server.getTable('tb_FundManagerHistory')
         self.tb_FundInfo = db_server.getTable('tb_FundInfo')
         self.tb_FundList = db_server.getTable('tb_FundList')
+        self.tb_FundPeriodicIncreaseDetail = db_server.getTable('tb_FundPeriodicIncreaseDetail')
 
 
 class FundInstance(Fund):
@@ -267,7 +268,121 @@ class FundList(Fund):
         df_list.to_csv(path_or_buf='{}.csv'.format(path), header=False, columns=['fund_code'], index=False)
         df_list['fund_code'].to_pickle('{}.ticker'.format(path))
 
+    def filterFundsPeriodicIncrease(self, df_list=None, periodic_increase=None, cls_mark='good',
+                                    above_cls_avg=False, above_sh300=False):
+        if df_list is None:
+            df_list = self.full_list
 
+        table = self.tb_FundPeriodicIncreaseDetail
+        sess = self.session
+        fund_codes = df_list.index.tolist()
+        # print fund_codes
+        # print
+        records = pd.DataFrame(sess.query(table).filter(table.c.fund_code.in_(fund_codes)).all())
+
+        # Excelent Funds
+        if cls_mark == 'excelent':
+            excelent_funds = records.loc[(records['this_year_cls_mark'] == 'excelent') &
+                                         (records['last_week_cls_mark'] == 'excelent') &
+                                         (records['last_month_cls_mark'] == 'excelent') &
+                                         (records['last_3_month_cls_mark'] == 'excelent') &
+                                         (records['last_6_month_cls_mark'] == 'excelent') &
+                                         (records['last_year_cls_mark'] == 'excelent') &
+                                         (records['last_2_year_cls_mark'] == 'excelent') &
+                                         (records['last_3_year_cls_mark'] == 'excelent')]
+            filtered_funds = excelent_funds
+            # print excelent_funds.shape[0]
+        # Excelent and Good Funds
+        elif cls_mark == 'good':
+            good_funds = records.loc[
+                ((records['this_year_cls_mark'] == 'excelent') | (records['this_year_cls_mark'] == 'good')) &
+                ((records['last_week_cls_mark'] == 'excelent') | (records['last_week_cls_mark'] == 'good')) &
+                ((records['last_month_cls_mark'] == 'excelent') | (records['last_month_cls_mark'] == 'good')) &
+                ((records['last_3_month_cls_mark'] == 'excelent') | (records['last_3_month_cls_mark'] == 'good')) &
+                ((records['last_6_month_cls_mark'] == 'excelent') | (records['last_6_month_cls_mark'] == 'good')) &
+                ((records['last_year_cls_mark'] == 'excelent') | (records['last_year_cls_mark'] == 'good')) &
+                ((records['last_2_year_cls_mark'] == 'excelent') | (records['last_2_year_cls_mark'] == 'good')) &
+                ((records['last_3_year_cls_mark'] == 'excelent') | (records['last_3_year_cls_mark'] == 'good'))]
+            filtered_funds = good_funds
+            # print good_funds.shape[0]
+
+        if above_sh300:
+            filtered_funds = filtered_funds.loc[(filtered_funds['this_year_inc'] >= filtered_funds['this_year_sh300']) &
+                                                (filtered_funds['last_week_inc'] >= filtered_funds['last_week_sh300']) &
+                                                (filtered_funds['last_month_inc'] >= filtered_funds[
+                                                    'last_month_sh300']) &
+                                                (filtered_funds['last_3_month_inc'] >= filtered_funds[
+                                                    'last_3_month_sh300']) &
+                                                (filtered_funds['last_6_month_inc'] >= filtered_funds[
+                                                    'last_6_month_sh300']) &
+                                                (filtered_funds['last_year_inc'] >= filtered_funds['last_year_sh300']) &
+                                                (filtered_funds['last_2_year_inc'] >= filtered_funds[
+                                                    'last_2_year_sh300']) &
+                                                (filtered_funds['last_3_year_inc'] >= filtered_funds[
+                                                    'last_3_year_sh300'])]
+
+        fund_codes = filtered_funds['fund_code'].tolist()
+        df_result = df_list.loc[df_list.index.isin(fund_codes)]
+        # print df_result.shape
+        return df_result
+
+    def filterFundsYearQuarterIncrease(self, df_list=None, periodic_increase=None, cls_mark='good',
+                                       above_cls_avg=False, above_sh300=False):
+        if df_list is None:
+            df_list = self.full_list
+
+        table = self.tb_FundYearQuarterIncreaseDetail
+        sess = self.session
+        fund_codes = df_list.index.tolist()
+        # print fund_codes
+        # print
+        records = pd.DataFrame(sess.query(table).filter(table.c.fund_code.in_(fund_codes)).all())
+
+        # Excelent Funds
+        if cls_mark == 'excelent':
+            excelent_funds = records.loc[(records['this_year_cls_mark'] == 'excelent') &
+                                         (records['last_week_cls_mark'] == 'excelent') &
+                                         (records['last_month_cls_mark'] == 'excelent') &
+                                         (records['last_3_month_cls_mark'] == 'excelent') &
+                                         (records['last_6_month_cls_mark'] == 'excelent') &
+                                         (records['last_year_cls_mark'] == 'excelent') &
+                                         (records['last_2_year_cls_mark'] == 'excelent') &
+                                         (records['last_3_year_cls_mark'] == 'excelent')]
+            filtered_funds = excelent_funds
+            # print excelent_funds.shape[0]
+        # Excelent and Good Funds
+        elif cls_mark == 'good':
+            good_funds = records.loc[
+                ((records['this_year_cls_mark'] == 'excelent') | (records['this_year_cls_mark'] == 'good')) &
+                ((records['last_week_cls_mark'] == 'excelent') | (records['last_week_cls_mark'] == 'good')) &
+                ((records['last_month_cls_mark'] == 'excelent') | (records['last_month_cls_mark'] == 'good')) &
+                ((records['last_3_month_cls_mark'] == 'excelent') | (records['last_3_month_cls_mark'] == 'good')) &
+                ((records['last_6_month_cls_mark'] == 'excelent') | (records['last_6_month_cls_mark'] == 'good')) &
+                ((records['last_year_cls_mark'] == 'excelent') | (records['last_year_cls_mark'] == 'good')) &
+                ((records['last_2_year_cls_mark'] == 'excelent') | (records['last_2_year_cls_mark'] == 'good')) &
+                ((records['last_3_year_cls_mark'] == 'excelent') | (records['last_3_year_cls_mark'] == 'good'))]
+            filtered_funds = good_funds
+            # print good_funds.shape[0]
+
+        if above_sh300:
+            filtered_funds = filtered_funds.loc[(filtered_funds['this_year_inc'] >= filtered_funds['this_year_sh300']) &
+                                                (filtered_funds['last_week_inc'] >= filtered_funds['last_week_sh300']) &
+                                                (filtered_funds['last_month_inc'] >= filtered_funds[
+                                                    'last_month_sh300']) &
+                                                (filtered_funds['last_3_month_inc'] >= filtered_funds[
+                                                    'last_3_month_sh300']) &
+                                                (filtered_funds['last_6_month_inc'] >= filtered_funds[
+                                                    'last_6_month_sh300']) &
+                                                (filtered_funds['last_year_inc'] >= filtered_funds['last_year_sh300']) &
+                                                (filtered_funds['last_2_year_inc'] >= filtered_funds[
+                                                    'last_2_year_sh300']) &
+                                                (filtered_funds['last_3_year_inc'] >= filtered_funds[
+                                                    'last_3_year_sh300'])]
+
+        fund_codes = filtered_funds['fund_code'].tolist()
+        df_result = df_list.loc[df_list.index.isin(fund_codes)]
+        # print df_result.shape
+        return df_result
 
 def main():
     #fund = FundInstance(fund_code='003503')
@@ -276,8 +391,9 @@ def main():
     funds = fund_list.getBuyableFunds()
     # funds = fund_list.getFundsInType(funds, 2)
     funds = fund_list.getFundsIssuedBeforeThan(df_list=funds, datestr='20150101')
-    # print funds
-    fund_list.dumpFundCodes('selected_full', funds)
+    # print fund
+    # fund_list.dumpFundCodes('selected_full', funds)
+    funds = fund_list.filterFundsPeriodicIncrease(df_list=funds, cls_mark='good', above_sh300=True)
 
 if __name__ == "__main__":
     main()
