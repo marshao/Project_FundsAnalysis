@@ -162,7 +162,6 @@ class C_Fund_Analysis():
         return pair
 
 
-
     def plotCorrHeadMap(self, df_corr):
         df_corr_values = df_corr.values
         fig = plt.figure()
@@ -181,7 +180,7 @@ class C_Fund_Analysis():
         ax.set_xticklabels(column_labels)
         ax.set_yticklabels(row_labels)
         plt.xticks(rotation=90)
-        heatmap.set_clim(-1, 1)
+        heatmap.set_clim(0.3, 1)
         plt.tight_layout()
         plt.show()
 
@@ -204,18 +203,19 @@ class C_Fund_Analysis():
 
 def main():
     fa = C_Fund_Analysis()
-    fa.loadFundsCumNavInCSV('2015-01-01', 'selected_full.ticker')
+    # fa.loadFundsCumNavInCSV('2015-01-01', 'basic_filtered.ticker')
     df_nav = fa.readFundsDataFromCSV('fund_cum_nav.csv')
     df_sta = fa.fundsStatistics(df_nav, path='fund_cum_nav_statisic.ticker')
+    print df_sta.sort_values(['std'], ascending=True)
     '''
     fa.loadFundsNavInCSV('2015-01-01', 'selected_full.ticker')
     df_nav = fa.readFundsDataFromCSV('fund_nav.csv')
     df_sta = fa.fundsStatistics(df_nav, path='fund_nav_statisic.ticker')
     print df_sta
     '''
-    #df_corr = fa.fundsCorr(df_nav)
-    #pair = fa.filterCorr(df_corr, 0.1, -0.1, sort=True)
-    #fa.plotCorrHeadMap(df_corr)
+    df_corr = fa.fundsCorr(df_nav)
+    pair = fa.filterCorr(df_corr, 0.1, -0.1, sort=True)
+    fa.plotCorrHeadMap(df_corr)
 
     '''
     fa.loadFundsChgInCSV('2015-01-01', 'selected_full.ticker')

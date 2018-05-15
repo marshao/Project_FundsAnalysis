@@ -15,6 +15,7 @@
 import C_MySQL_Server as db
 from sqlalchemy import select
 import pandas as pd
+import numpy as np
 from datetime import datetime, date, timedelta
 import pickle
 
@@ -28,6 +29,7 @@ class Fund():
         self.tb_FundInfo = db_server.getTable('tb_FundInfo')
         self.tb_FundList = db_server.getTable('tb_FundList')
         self.tb_FundPeriodicIncreaseDetail = db_server.getTable('tb_FundPeriodicIncreaseDetail')
+
 
 
 class FundInstance(Fund):
@@ -336,64 +338,58 @@ class FundList(Fund):
         fund_codes = df_list.index.tolist()
         # print fund_codes
         # print
-        records = pd.DataFrame(sess.query(table).filter(table.c.fund_code.in_(fund_codes)).all())
+        df_records = pd.DataFrame(sess.query(table).filter(table.c.fund_code.in_(fund_codes)).all())
 
-        # Excelent Funds
-        if cls_mark == 'excelent':
-            excelent_funds = records.loc[(records['this_year_cls_mark'] == 'excelent') &
-                                         (records['last_week_cls_mark'] == 'excelent') &
-                                         (records['last_month_cls_mark'] == 'excelent') &
-                                         (records['last_3_month_cls_mark'] == 'excelent') &
-                                         (records['last_6_month_cls_mark'] == 'excelent') &
-                                         (records['last_year_cls_mark'] == 'excelent') &
-                                         (records['last_2_year_cls_mark'] == 'excelent') &
-                                         (records['last_3_year_cls_mark'] == 'excelent')]
-            filtered_funds = excelent_funds
-            # print excelent_funds.shape[0]
-        # Excelent and Good Funds
-        elif cls_mark == 'good':
-            good_funds = records.loc[
-                ((records['this_year_cls_mark'] == 'excelent') | (records['this_year_cls_mark'] == 'good')) &
-                ((records['last_week_cls_mark'] == 'excelent') | (records['last_week_cls_mark'] == 'good')) &
-                ((records['last_month_cls_mark'] == 'excelent') | (records['last_month_cls_mark'] == 'good')) &
-                ((records['last_3_month_cls_mark'] == 'excelent') | (records['last_3_month_cls_mark'] == 'good')) &
-                ((records['last_6_month_cls_mark'] == 'excelent') | (records['last_6_month_cls_mark'] == 'good')) &
-                ((records['last_year_cls_mark'] == 'excelent') | (records['last_year_cls_mark'] == 'good')) &
-                ((records['last_2_year_cls_mark'] == 'excelent') | (records['last_2_year_cls_mark'] == 'good')) &
-                ((records['last_3_year_cls_mark'] == 'excelent') | (records['last_3_year_cls_mark'] == 'good'))]
-            filtered_funds = good_funds
-            # print good_funds.shape[0]
+        return df_records
 
-        if above_sh300:
-            filtered_funds = filtered_funds.loc[(filtered_funds['this_year_inc'] >= filtered_funds['this_year_sh300']) &
-                                                (filtered_funds['last_week_inc'] >= filtered_funds['last_week_sh300']) &
-                                                (filtered_funds['last_month_inc'] >= filtered_funds[
-                                                    'last_month_sh300']) &
-                                                (filtered_funds['last_3_month_inc'] >= filtered_funds[
-                                                    'last_3_month_sh300']) &
-                                                (filtered_funds['last_6_month_inc'] >= filtered_funds[
-                                                    'last_6_month_sh300']) &
-                                                (filtered_funds['last_year_inc'] >= filtered_funds['last_year_sh300']) &
-                                                (filtered_funds['last_2_year_inc'] >= filtered_funds[
-                                                    'last_2_year_sh300']) &
-                                                (filtered_funds['last_3_year_inc'] >= filtered_funds[
-                                                    'last_3_year_sh300'])]
+    def filterFundManagerHistory(self, df_list=None):
+        if df_list is None:
+            df_list = self.full_list
 
-        fund_codes = filtered_funds['fund_code'].tolist()
-        df_result = df_list.loc[df_list.index.isin(fund_codes)]
-        # print df_result.shape
-        return df_result
+        table = self.tb_FundManagerHistory
+        sess = self.session
 
-def main():
-    #fund = FundInstance(fund_code='003503')
-    # fund = Fund(fund_name= '嘉实沪港深回报混合型证券投资基金')
+        fund_manager_codes = df_list['fund_manager_code_1'].tolist()
+        fund_manager_codes = list(set(fund_manager_codes))
+        df_records = pd.DataFrame(sess.query(table).filter(table.c.manager_code.in_(fund_manager_codes)).all())
+
+        df_records['return_rate'] = df_records['return_rate'].astype(np.float32)
+        df_records['class_average_return'] = df_records['class_average_return'].astype(
+            np.float32)
+        # Find whether managers' funds run better than class average.
+        df_records['win_rate'] = (df_records['return_rate'] >= df_records['class_average_return']).astype(np.float32)
+
+        # Aggregate informations of manager's records, compute the ratio of win records
+        df_agg = df_records.groupby(by=['manager_code']).agg({'fund_code': 'count',
+                                                              'return_rate': ['mean', 'max'],
+                                                              'class_average_return': ['mean', 'max'],
+                                                              'win_rate': lambda x: sum(x) / x.count()}) \
+            .sort_values([('win_rate', '<lambda>')], ascending=False)
+
+        # Find managers whose win_rates are better than 50%
+        df_agg = df_agg.loc[df_agg[('win_rate', '<lambda>')] > 0.5]
+
+        # Find managers whose win_rates is > 0.5 and running more funds
+        manager_codes = df_agg.head(15).sort_values([('fund_code', 'count')], ascending=False).index.tolist()
+
+        # Sort funds run by better manager
+        df_list = df_list.loc[df_list['fund_manager_code_1'].isin(manager_codes)]
+
+        return df_list
+
+
+def funds_basic_sort():
     fund_list = FundList()
     funds = fund_list.getBuyableFunds()
-    # funds = fund_list.getFundsInType(funds, 2)
+    funds = fund_list.getFundsInType(funds, 1)
     funds = fund_list.getFundsIssuedBeforeThan(df_list=funds, datestr='20150101')
-    # print fund
-    # fund_list.dumpFundCodes('selected_full', funds)
     funds = fund_list.filterFundsPeriodicIncrease(df_list=funds, cls_mark='good', above_sh300=True)
+    funds = fund_list.filterFundManagerHistory(df_list=funds)
+
+    fund_list.dumpFundCodes('basic_filtered', funds)
+
+def main():
+    funds_basic_sort()
 
 if __name__ == "__main__":
     main()
