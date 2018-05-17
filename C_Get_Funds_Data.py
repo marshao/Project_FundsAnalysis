@@ -1666,34 +1666,6 @@ class FundSpider():
                 print ('{}/{}').format(i, count)
                 #'''
 
-    '''
-    def getFundCumIncomeRateInLoops(self):
-        periods = ['1M', '3M', '6M', '1Y', '3Y', '5Y', 'all']
-        fund_list = self.__getFundCodes()
-        count = len(fund_list)
-        param_periods = []
-        param_fund_codes = []
-
-        # self.db_server.processData(func='truncate', des_table='tb_FundCumIncomeRate_1M')
-        # self.db_server.processData(func='truncate', des_table='tb_FundCumIncomeRate_3M')
-        # self.db_server.processData(func='truncate', des_table='tb_FundCumIncomeRate_6M')
-        # self.db_server.processData(func='truncate', des_table='tb_FundCumIncomeRate_1Y')
-        # self.db_server.processData(func='truncate', des_table='tb_FundCumIncomeRate_3Y')
-        # self.db_server.processData(func='truncate', des_table='tb_FundCumIncomeRate_5Y')
-        # self.db_server.processData(func='truncate', des_table='tb_FundCumIncomeRate_All')
-        for f in fund_list:
-            param_fund_codes.append(f[0])
-        param_fund_codes = param_fund_codes * 7
-
-        for period in periods:
-            for i in range(count):
-                # param_instances.append(self)
-                param_periods.append(period)
-
-        param_t = zip(param_fund_codes, param_periods)
-
-        mp_runner(param_t)
-        '''
 
 def main():
     fspider = FundSpider()
@@ -1705,15 +1677,4 @@ def main():
 if __name__ == "__main__":
     main()
 
-'''
-def run_mp(params):
-    fs = FundSpider()
-    return fs.__getFundCumIncomeRate(params[0], params[1])
 
-
-def mp_runner(params):
-    pool = mp.Pool(8)
-    pool.map_async(run_mp, params)
-    pool.close()
-    pool.join()
-'''
