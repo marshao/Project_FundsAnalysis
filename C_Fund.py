@@ -13,7 +13,8 @@
 #############################################################################
 
 import C_MySQL_Server as db
-from sqlalchemy import select
+from sqlalchemy import select, func, and_
+from sqlalchemy.sql import text
 import pandas as pd
 import numpy as np
 from datetime import datetime, date, timedelta
@@ -29,7 +30,13 @@ class Fund():
         self.tb_FundInfo = db_server.getTable('tb_FundInfo')
         self.tb_FundList = db_server.getTable('tb_FundList')
         self.tb_FundPeriodicIncreaseDetail = db_server.getTable('tb_FundPeriodicIncreaseDetail')
-
+        self.tb_FundCumIncomeRate_1M = db_server.getTable('tb_FundCumIncomeRate_1M')
+        self.tb_FundCumIncomeRate_3M = db_server.getTable('tb_FundCumIncomeRate_3M')
+        self.tb_FundCumIncomeRate_6M = db_server.getTable('tb_FundCumIncomeRate_6M')
+        self.tb_FundCumIncomeRate_1Y = db_server.getTable('tb_FundCumIncomeRate_1Y')
+        self.tb_FundCumIncomeRate_3Y = db_server.getTable('tb_FundCumIncomeRate_3Y')
+        self.tb_FundCumIncomeRate_5Y = db_server.getTable('tb_FundCumIncomeRate_5Y')
+        self.tb_FundCumIncomeRate_All = db_server.getTable('tb_FundCumIncomeRate_All')
 
 
 class FundInstance(Fund):
@@ -261,6 +268,11 @@ class FundList(Fund):
         df_result = df_list.loc[df_list['issue_date'] <= target_year]
         return df_result
 
+    def filterFundsAssetValue(self, df_list = None, asset_value = 1.0):
+        if df_list is None:
+            df_list = self.full_list
+        return  df_list.loc[df_list['asset_value'] >= asset_value]
+
     def dumpFundCodes(self, path, df_list=None):
         if df_list is None:
             df_list = self.full_list
@@ -269,6 +281,61 @@ class FundList(Fund):
         # with open('selected_fund_codes.csv', wb) as f:
         df_list.to_csv(path_or_buf='{}.csv'.format(path), header=False, columns=['fund_code'], index=False)
         df_list['fund_code'].to_pickle('{}.ticker'.format(path))
+
+    def filterFundsCumIncomeRateHeads(self, df_list=None, periods=['1M', '3M', '6M', '1Y', '3Y', '5Y', 'All']):
+        '''
+        Fetch funds cumlative income rates in different periods [3Y, 1Y, 6M, 3M, 1M] for first 400 funds
+        Rank the income rates and calculate sum, mean, std
+        The one with small mean and sum should have higher income rates.
+        The one with small std shoud have stabler income rates.
+        :param df_list:
+        :param periods:
+        :return: first 30 funds order by sum, mean, std
+        '''
+        if df_list is None:
+            df_list = self.full_list
+
+        fund_codes = df_list.index.tolist()
+        table = "tb_FundCumIncomeRate_3Y"
+        sess = self.session
+        df_cum_rates = pd.DataFrame()
+        try:
+            fund_codes_str = ", ".join(fund_codes)
+
+            table_list = ["tb_FundCumIncomeRate_3Y", "tb_FundCumIncomeRate_1Y", "tb_FundCumIncomeRate_6M",
+                          "tb_FundCumIncomeRate_3M", "tb_FundCumIncomeRate_1M"]
+
+            for table in table_list:
+                sql_query = 'select a.fund_code, a.fund_cum_income_rate from {} a ' \
+                            'inner join(select fund_code, max(quote_date) as max_date from {} ' \
+                            'where fund_code in ({}) group by fund_code) b ' \
+                            'on a.fund_code = b.fund_code and a.quote_date = b.max_date ' \
+                            'order by a.fund_cum_income_rate DESC;'.format(table, table, fund_codes_str)
+                records = pd.DataFrame(sess.execute(sql_query).fetchall())
+                col_name = 'cum_rate_{}'.format(table[-2:])
+                records.columns = ['fund_code', col_name]
+                if df_cum_rates.empty:
+                    df_cum_rates = records
+                else:
+                    df_cum_rates = pd.merge(df_cum_rates, records, on=['fund_code'])
+            #print df_cum_rates.sort_values('cum_rate_1Y', ascending=False)
+            df_cum_rates['3Y_rank'] = df_cum_rates['cum_rate_3Y'].rank(ascending=False)
+            df_cum_rates['1Y_rank'] = df_cum_rates['cum_rate_1Y'].rank(ascending=False)
+            df_cum_rates['6M_rank'] = df_cum_rates['cum_rate_6M'].rank(ascending=False)
+            df_cum_rates['3M_rank'] = df_cum_rates['cum_rate_3M'].rank(ascending=False)
+            df_cum_rates['1M_rank'] = df_cum_rates['cum_rate_1M'].rank(ascending=False)
+            df_cum_rank = df_cum_rates[['fund_code', '3Y_rank', '1Y_rank', '6M_rank', '3M_rank', '1M_rank']]
+            df_cum_rank.set_index('fund_code', inplace=True)
+            df_cum_rank['sum'] = df_cum_rank.sum(axis=1)
+            df_cum_rank['mean'] = df_cum_rank.mean(axis=1)
+            df_cum_rank['std'] = df_cum_rank.std(axis = 1)
+            df_cum_rank = df_cum_rank.sort_values(['mean', 'sum', 'std'], ascending=True)
+            #print df_cum_rank
+            return df_cum_rank.iloc[0:30, :]
+        except Exception as e:
+            print "Fucking error again: ", e
+        return  df_list
+
 
     def filterFundsPeriodicIncrease(self, df_list=None, periodic_increase=None, cls_mark='good',
                                     above_cls_avg=False, above_sh300=False):
@@ -370,7 +437,7 @@ class FundList(Fund):
         df_agg = df_agg.loc[df_agg[('win_rate', '<lambda>')] > 0.5]
 
         # Find managers whose win_rates is > 0.5 and running more funds
-        manager_codes = df_agg.head(15).sort_values([('fund_code', 'count')], ascending=False).index.tolist()
+        manager_codes = df_agg.head(200).sort_values([('fund_code', 'count')], ascending=False).index.tolist()
 
         # Sort funds run by better manager
         df_list = df_list.loc[df_list['fund_manager_code_1'].isin(manager_codes)]
@@ -383,8 +450,14 @@ def funds_basic_sort():
     funds = fund_list.getBuyableFunds()
     funds = fund_list.getFundsInType(funds, 1)
     funds = fund_list.getFundsIssuedBeforeThan(df_list=funds, datestr='20150101')
-    funds = fund_list.filterFundsPeriodicIncrease(df_list=funds, cls_mark='good', above_sh300=True)
+    funds = fund_list.filterFundsAssetValue(df_list=funds, asset_value=5.0)
+    print funds.shape[0]
     funds = fund_list.filterFundManagerHistory(df_list=funds)
+    print funds.shape[0]
+    funds = fund_list.filterFundsCumIncomeRateHeads(df_list=funds)
+    print funds.shape[0]
+    funds = fund_list.filterFundsPeriodicIncrease(df_list=funds, cls_mark='good', above_sh300=True)
+    print funds.shape[0]
 
     fund_list.dumpFundCodes('basic_filtered', funds)
 

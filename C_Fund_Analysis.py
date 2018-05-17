@@ -161,6 +161,11 @@ class C_Fund_Analysis():
             return sorted_pair
         return pair
 
+    def getDedicateFunds(self, df_list, fund_codes):
+        if type(fund_codes) == 'list':
+            fund_codes = str(fund_codes)
+
+        return df_list[fund_codes]
 
     def plotCorrHeadMap(self, df_corr):
         df_corr_values = df_corr.values
@@ -203,26 +208,21 @@ class C_Fund_Analysis():
 
 def main():
     fa = C_Fund_Analysis()
-    # fa.loadFundsCumNavInCSV('2015-01-01', 'basic_filtered.ticker')
+    #fa.loadFundsCumNavInCSV('2015-01-01', 'basic_filtered.ticker')
     df_nav = fa.readFundsDataFromCSV('fund_cum_nav.csv')
     df_sta = fa.fundsStatistics(df_nav, path='fund_cum_nav_statisic.ticker')
-    print df_sta.sort_values(['std'], ascending=True)
-    '''
-    fa.loadFundsNavInCSV('2015-01-01', 'selected_full.ticker')
-    df_nav = fa.readFundsDataFromCSV('fund_nav.csv')
-    df_sta = fa.fundsStatistics(df_nav, path='fund_nav_statisic.ticker')
-    print df_sta
-    '''
-    df_corr = fa.fundsCorr(df_nav)
-    pair = fa.filterCorr(df_corr, 0.1, -0.1, sort=True)
-    fa.plotCorrHeadMap(df_corr)
 
-    '''
-    fa.loadFundsChgInCSV('2015-01-01', 'selected_full.ticker')
-    df_nav = fa.readFundsDataFromCSV('nav_chg.csv')
-    df_sta = fa.fundsStatistics(df_nav, path='fund_nav_chg_statistic.ticker')
+    df_corr = fa.fundsCorr(df_nav)
+    #fa.plotCorrHeadMap(df_corr)
+
+    df_filtered = fa.getDedicateFunds(df_nav, ['240020_Nav', '002001_Nav','460005_Nav'])
+    df_sta = fa.fundsStatistics(df_filtered)
     print df_sta
-    '''
+    df_corr = fa.fundsCorr(df_filtered)
+    fa.plotCorrHeadMap(df_corr)
+    print df_corr
+
+
 
 if __name__ == "__main__":
     main()
