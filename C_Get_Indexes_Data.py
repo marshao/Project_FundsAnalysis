@@ -21,6 +21,7 @@ from bs4 import BeautifulSoup
 import time, datetime
 import random
 from pandas_datareader import data
+import pandas as pd
 
 
 class StockIndexesSpider():
@@ -167,22 +168,28 @@ class StockIndexesSpider():
                        ['000001.SS', '000016.SS', '000300.SS', '399001.SZ',
                         'MICEXINDEXCF.ME', 'TWIIGSPTSE']]
 
+        # ticker_sets = [['GSPC', 'DJI', 'IXIC', 'NYA', 'XAX', 'RUT', 'VIX', 'FTSE',
+        #                'GDAXI', 'FCHI', 'N225', 'KS11', 'AXJO', 'TWII', 'GSPTSE', 'IPSA'],
+        #               ['000016.SS', 'TWIIGSPTSE']]
+
         # dtime = datetime.datetime.strptime('2018-05-01 00:00:00', '%Y-%m-%d %H:%M:%S')
-        # cdate = time.mktime(dtime.timetuple())
+        dtime = datetime.datetime.now()
+        cdate = time.mktime(dtime.timetuple())
         # begin = -631008000 #(1950-01-01)
         # begin = 1514736000 #(2018-01-01)
         # begin = 1525104000 #(2018-05-01)
-        end = 1525708800  # (2018-05-08)
+        # end = 1525708800  # (2018-05-08)
+        end = int(cdate)
         begin = 1199116800  # (2008-01-01)
         interval = '1d'
         error_funds = []
 
-        for i in range(1, 2):
+        for i in range(0, 2):
             tickers = ticker_sets[i]
             for ticker in tickers:
                 fund_url = self.__idx_yahoo_url(ticker, begin, end, interval, i)
                 try:
-                    res = self.__getURL(url=fund_url, proxy=1)
+                    res = self.__getURL(url=fund_url, proxy=0)
                     data = res.text
                     result, error_funds = self.__process_idx_yahoo_data(data, ticker, error_funds)
                     sql_param, error_funds = self.__build_sql_param(ticker, result, error_funds)
@@ -204,7 +211,7 @@ class StockIndexesSpider():
     def __process_idx_yahoo_data(self, data, ticker, error_funds):
         try:
             result = {}
-            # print data
+            #print data
             result['idx_name'] = ticker
             result['time_stamp'] = data[data.find('"timestamp"') + 13: data.find('"indicators"') - 2].split(',')
             result['time_stamp'] = [datetime.datetime.fromtimestamp(float(val)).strftime('%Y-%m-%d %H:%M:%S') for val in
@@ -216,6 +223,7 @@ class StockIndexesSpider():
                 key = row[:row.find(':')].replace(',', '')
                 value = row[row.find(':') + 1:].split(',')
                 result[key] = value
+                #print result
         except  Exception as e:
             print ('parser indice web data', ticker, e)
             error_funds.append(['parser indice web data', ticker])
@@ -225,6 +233,7 @@ class StockIndexesSpider():
     def __build_sql_param(self, ticker, result, error_funds):
         try:
             sql_param = []
+            #print result
             for i in range(len(result['time_stamp'])):
                 param = {}
                 param['idx_name'] = '"{}"'.format(ticker)
@@ -253,14 +262,40 @@ class StockIndexesSpider():
             # self.__toPickles(error_funds, 'error_history_indices.ticker')
         return
 
+    def saveIdxDataInCSV(self):
+        try:
+            sql_query = 'select a.idx_name from (' \
+                        'SELECT idx_name ,count(adjclose) as cc FROM DB_FundsAnalysis.tb_HistoryIndices group by idx_name) a ' \
+                        'where a.cc >= 300;'
+            idx_names = self.session.execute(sql_query).fetchall()
+        except Exception as e:
+            print ("Index code error", e)
+
+        # try:
+        df_indices = pd.DataFrame()
+        for idx_name in idx_names:
+            sql_query = 'select adjclose, quote_date from DB_FundsAnalysis.tb_HistoryIndices where idx_name = "%s"' % (
+            idx_name[0])
+            df_temp = pd.read_sql(sql_query, con=self.db_engine)
+            df_temp.columns = ['quote_date', idx_name[0]]
+            if df_indices.empty:
+                df_indices = df_temp
+            else:
+                df_indices = pd.merge(left=df_indices, right=df_temp, on='quote_date', how='outer')
+        print df_indices
+        # except Exception as e:
+        #    print e
+
+
+
     def getData(self):
         self.__getIndices()
 
 
 def main():
     idx = StockIndexesSpider()
-    idx.getData()
-
+    # idx.getData()
+    idx.saveIdxDataInCSV()
 
 if __name__ == "__main__":
     main()

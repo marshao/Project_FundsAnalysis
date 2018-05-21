@@ -210,17 +210,15 @@ def main():
     fa = C_Fund_Analysis()
     #fa.loadFundsCumNavInCSV('2015-01-01', 'basic_filtered.ticker')
     df_nav = fa.readFundsDataFromCSV('fund_cum_nav.csv')
-    df_sta = fa.fundsStatistics(df_nav, path='fund_cum_nav_statisic.ticker')
-
-    df_corr = fa.fundsCorr(df_nav)
-    #fa.plotCorrHeadMap(df_corr)
+    # df_sta = fa.fundsStatistics(df_nav, path='fund_cum_nav_statisic.ticker')
+    # df_corr = fa.fundsCorr(df_nav)
 
     df_filtered = fa.getDedicateFunds(df_nav, ['240020_Nav', '002001_Nav','460005_Nav'])
     df_sta = fa.fundsStatistics(df_filtered)
-    print df_sta
+    #print df_sta
     df_corr = fa.fundsCorr(df_filtered)
-    fa.plotCorrHeadMap(df_corr)
-    print df_corr
+    # fa.plotCorrHeadMap(df_corr)
+    print df_filtered
 
 
 
