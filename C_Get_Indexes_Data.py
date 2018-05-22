@@ -162,16 +162,28 @@ class StockIndexesSpider():
         print df
         return
 
-    def __getIndices(self):
+    def __getLocalIndices(self, amount=3000):
+
+        ticker_sets = ['000001', '000016', '000300', '399001', '399006', '000903', '000905', '000012', '000013']
+        error_funds = []
+        for ticker in ticker_sets:
+            fund_url = self.__idx_QQ_url(ticker, amount)
+            try:
+                res = self.__getURL(url=fund_url, proxy=0)
+                data = res.text
+                # print data
+                result, error_funds = self.__process_idx_QQ_data(data, ticker, error_funds)
+                sql_param, error_funds = self.__build_sql_param(ticker, result, error_funds)
+                self.__save_idx_data(ticker, sql_param, error_funds)
+            except  Exception as e:
+                # print ('getFundNVFullList', fund_code, e)
+                print ('getWebContents', ticker, e)
+        return
+
+    def __getForeignIndices(self, begin=1199116800):
         ticker_sets = [['GSPC', 'DJI', 'IXIC', 'NYA', 'XAX', 'RUT', 'VIX', 'FTSE',
                         'GDAXI', 'FCHI', 'N225', 'KS11', 'AXJO', 'TWII', 'GSPTSE', 'IPSA'],
-                       ['000001.SS', '000016.SS', '000300.SS', '399001.SZ',
-                        'MICEXINDEXCF.ME', 'TWIIGSPTSE']]
-
-        # ticker_sets = [['GSPC', 'DJI', 'IXIC', 'NYA', 'XAX', 'RUT', 'VIX', 'FTSE',
-        #                'GDAXI', 'FCHI', 'N225', 'KS11', 'AXJO', 'TWII', 'GSPTSE', 'IPSA'],
-        #               ['000016.SS', 'TWIIGSPTSE']]
-
+                       ['MICEXINDEXCF.ME']]
         # dtime = datetime.datetime.strptime('2018-05-01 00:00:00', '%Y-%m-%d %H:%M:%S')
         dtime = datetime.datetime.now()
         cdate = time.mktime(dtime.timetuple())
@@ -180,13 +192,12 @@ class StockIndexesSpider():
         # begin = 1525104000 #(2018-05-01)
         # end = 1525708800  # (2018-05-08)
         end = int(cdate)
-        begin = 1199116800  # (2008-01-01)
+        #begin = 1199116800  # (2008-01-01)
         interval = '1d'
         error_funds = []
-
-        for i in range(0, 2):
-            tickers = ticker_sets[i]
-            for ticker in tickers:
+        for i in range(2):
+            ticker_set = ticker_sets[i]
+            for ticker in ticker_set:
                 fund_url = self.__idx_yahoo_url(ticker, begin, end, interval, i)
                 try:
                     res = self.__getURL(url=fund_url, proxy=0)
@@ -208,13 +219,24 @@ class StockIndexesSpider():
         fund_url_sets = [fund_url_0, fund_url_1]
         return fund_url_sets[i]
 
+    def __idx_QQ_url(self, ticker, amount):
+        if ticker[0] == '0':
+            ticker = 'sh' + ticker
+        else:
+            ticker = 'sz' + ticker
+
+        fund_url = 'http://web.ifzq.gtimg.cn/appstock/app/fqkline/get?var=kline_dayqfq&param={},' \
+                   'day,,,{},qfq'.format(ticker, amount)
+
+        return fund_url
+
     def __process_idx_yahoo_data(self, data, ticker, error_funds):
         try:
             result = {}
             #print data
             result['idx_name'] = ticker
             result['time_stamp'] = data[data.find('"timestamp"') + 13: data.find('"indicators"') - 2].split(',')
-            result['time_stamp'] = [datetime.datetime.fromtimestamp(float(val)).strftime('%Y-%m-%d %H:%M:%S') for val in
+            result['time_stamp'] = [datetime.datetime.fromtimestamp(float(val)).strftime('%Y-%m-%d') for val in
                                     result['time_stamp']]
             rows = data[data.find('"indicators"') + 24: data.find('"error"') - 6].encode('utf-8')
             rows = rows.replace('"', '').replace('[{adjclose:', '').replace('}]', '').replace('[', '')
@@ -228,6 +250,34 @@ class StockIndexesSpider():
             print ('parser indice web data', ticker, e)
             error_funds.append(['parser indice web data', ticker])
 
+        return result, error_funds
+
+    def __process_idx_QQ_data(self, data, ticker, error_funds):
+        try:
+            result = {}
+            records = data[(data.find("day") + 8): (data.find("qt") - 5)].split('"],["')
+            time_stamp, open, close, high, low, volume = [], [], [], [], [], []
+
+            result['idx_name'] = ticker
+            for record in records:
+                units = record.split('","')
+                time_stamp.append(datetime.datetime.strptime(units[0], '%Y-%m-%d'))
+                open.append(float(units[1]))
+                close.append(float(units[2]))
+                high.append(float(units[3]))
+                low.append(float(units[4]))
+                volume.append(float(units[5]))
+
+            result['time_stamp'] = time_stamp
+            result['open'] = open
+            result['close'] = close
+            result['adjclose'] = close
+            result['high'] = high
+            result['low'] = low
+            result['volume'] = volume
+        except  Exception as e:
+            print ('parser indice web data', ticker, e)
+            error_funds.append(['parser indice web data', ticker])
         return result, error_funds
 
     def __build_sql_param(self, ticker, result, error_funds):
@@ -271,30 +321,34 @@ class StockIndexesSpider():
         except Exception as e:
             print ("Index code error", e)
 
-        # try:
-        df_indices = pd.DataFrame()
-        for idx_name in idx_names:
-            sql_query = 'select adjclose, quote_date from DB_FundsAnalysis.tb_HistoryIndices where idx_name = "%s"' % (
-            idx_name[0])
-            df_temp = pd.read_sql(sql_query, con=self.db_engine)
-            df_temp.columns = ['quote_date', idx_name[0]]
-            if df_indices.empty:
-                df_indices = df_temp
-            else:
-                df_indices = pd.merge(left=df_indices, right=df_temp, on='quote_date', how='outer')
-        print df_indices
-        # except Exception as e:
-        #    print e
-
+        try:
+            df_indices = pd.DataFrame()
+            for idx_name in idx_names:
+                # print idx_name[0]
+                sql_query = 'select adjclose, quote_date from DB_FundsAnalysis.tb_HistoryIndices where idx_name = "%s" order by quote_date DESC limit 1000' % (
+                idx_name[0])
+                df_temp = pd.read_sql(sql_query, con=self.db_engine)
+                df_temp.rename(columns={'adjclose': idx_name[0]}, inplace=True)
+                # print df_temp
+                if df_indices.empty:
+                    df_indices = df_temp
+                else:
+                    df_indices = df_indices.merge(right=df_temp, how='outer', on='quote_date')
+            df_indices.to_csv('indices_data.csv', index=False)
+            # print df_indices
+        except Exception as e:
+            print e
 
 
     def getData(self):
-        self.__getIndices()
+        self.db_server.processData(func='truncate', des_table='tb_HistoryIndices')
+        self.__getForeignIndices()
+        self.__getLocalIndices()
 
 
 def main():
     idx = StockIndexesSpider()
-    # idx.getData()
+    idx.getData()
     idx.saveIdxDataInCSV()
 
 if __name__ == "__main__":

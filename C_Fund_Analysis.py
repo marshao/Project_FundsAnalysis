@@ -118,6 +118,14 @@ class C_Fund_Analysis():
         df_funds_nav = df_funds_nav.iloc[:, :].astype(np.float64)
         return df_funds_nav
 
+    def readIndicesFromCSV(self, beg_date, path):
+        df_indices = pd.read_csv(path).sort_values('quote_date', ascending=False)
+        df_indices.set_index('quote_date', inplace=True)
+        # beg_date = datetime.strptime(beg_date, '%Y-%m-%d')
+        df_indices = df_indices.iloc[df_indices.index >= beg_date]
+        # print df_indices
+        return df_indices
+
     def fundsCorr(self, df_funds_nav):
         df_corr = df_funds_nav.corr()
         return df_corr
@@ -200,6 +208,19 @@ class C_Fund_Analysis():
         with open(path, 'wb') as f:
             pickle.dump(data, f)
 
+    def mergeDFs(self, left, right, on=None, how='outer', left_index=False, right_index=False, sort=False):
+        df = left.merge(right, on=on, how=how, left_index=left_index, right_index=right_index, sort=sort)
+        df.sort_index(inplace=True, ascending=False)
+        return df
+
+    def getFillNa(self, df, method='ffile'):
+        df.fillna(method='ffill', inplace=True)
+        return df
+
+    def getRollingMean(self, df, window=7):
+
+        df['MA'] = df['240020_Nav'].rolling(window=window, min_periods=3).mean()
+        print df
 
 
 
@@ -207,19 +228,26 @@ class C_Fund_Analysis():
 
 
 def main():
+    beg_date = '2015-01-01'
     fa = C_Fund_Analysis()
-    #fa.loadFundsCumNavInCSV('2015-01-01', 'basic_filtered.ticker')
+    #fa.loadFundsCumNavInCSV(beg_date, 'basic_filtered.ticker')
     df_nav = fa.readFundsDataFromCSV('fund_cum_nav.csv')
     # df_sta = fa.fundsStatistics(df_nav, path='fund_cum_nav_statisic.ticker')
     # df_corr = fa.fundsCorr(df_nav)
 
     df_filtered = fa.getDedicateFunds(df_nav, ['240020_Nav', '002001_Nav','460005_Nav'])
-    df_sta = fa.fundsStatistics(df_filtered)
+    #df_sta = fa.fundsStatistics(df_filtered)
     #print df_sta
-    df_corr = fa.fundsCorr(df_filtered)
+    #df_corr = fa.fundsCorr(df_filtered)
     # fa.plotCorrHeadMap(df_corr)
-    print df_filtered
+    #print df_filtered
 
+    df_indices = fa.readIndicesFromCSV(beg_date, 'indices_data.csv')
+    # print df_indices
+
+    df_combined = fa.mergeDFs(left=df_filtered, right=df_indices, left_index=True, right_index=True, how='left')
+    df_combined = fa.getFillNa(df_combined)
+    fa.getRollingMean(df_combined)
 
 
 if __name__ == "__main__":
