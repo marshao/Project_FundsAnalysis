@@ -1627,7 +1627,7 @@ class FundSpider():
     def getFundInforFromWeb(self, fund_code=None, func=None, quote_time=None, infor=None):
         #self.__getFundManagerInfor('570006')
         #self.__getFundManagerInfor('070018')
-        # self.__getFundNetValue('003563')
+        # self.__getFundNetValue('460005')
         #self.__getFundBaseInfor('005488')
         #self.__getFundCumIncomeRate('003816', '1M', model='del')
         # self.__getFundRankInClass('570006')
@@ -1638,7 +1638,7 @@ class FundSpider():
         # self.__getFundHolderChg('501008')
         # self.__getFundPositionDetail('110022')
         #self.__getFundIndustryConfig('110022')
-        #'''
+
         periods = ['1M', '3M', '6M', '1Y', '3Y', '5Y', 'all']
 
         fund_list = self.__getFundCodes()
@@ -1664,7 +1664,7 @@ class FundSpider():
 
             if i % 10 == 0:
                 print ('{}/{}').format(i, count)
-                #'''
+
 
 
 def main():

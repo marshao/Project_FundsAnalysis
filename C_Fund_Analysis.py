@@ -82,7 +82,7 @@ class C_Fund_Analysis():
                 df_funds_nav = pd.DataFrame.merge(df_funds_nav, df_single_nav, how='outer',
                                                   on=['quote_date', 'quote_date'])
 
-        df_funds_nav.to_csv('fund_cum_nav.csv', header=True, sep=',')
+        df_funds_nav.to_csv('fund_cum_nav.csv', header=True, sep=',', na_rep='NA', float_format='%.4f', index=0)
 
     def loadFundsChgInCSV(self, before, path):
         df_funds_nav = pd.DataFrame()
@@ -111,15 +111,16 @@ class C_Fund_Analysis():
         df_funds_nav.to_csv('nav_chg.csv', header=True, sep=',')
 
     def readFundsDataFromCSV(self, path):
-        df_funds_nav = pd.read_csv(path, index_col=1).iloc[:, 1:]
+        df_funds_nav = pd.read_csv(path, index_col=0)
         df_funds_nav.fillna(0.0, inplace=True)
         df_funds_nav.replace(to_replace=r'\s+', value=0.0, regex=True, inplace=True)
         df_funds_nav.index = df_funds_nav.index.astype(np.datetime64)
         df_funds_nav = df_funds_nav.iloc[:, :].astype(np.float64)
+        # print df_funds_nav
         return df_funds_nav
 
     def readIndicesFromCSV(self, beg_date, path):
-        df_indices = pd.read_csv(path).sort_values('quote_date', ascending=False)
+        df_indices = pd.read_csv(path, ).sort_values('quote_date', ascending=False)
         df_indices.set_index('quote_date', inplace=True)
         # beg_date = datetime.strptime(beg_date, '%Y-%m-%d')
         df_indices = df_indices.iloc[df_indices.index >= beg_date]
@@ -213,24 +214,47 @@ class C_Fund_Analysis():
         df.sort_index(inplace=True, ascending=False)
         return df
 
-    def getFillNa(self, df, method='ffile'):
+    def getFillNa(self, df, method='ffill'):
         df.fillna(method='ffill', inplace=True)
         return df
 
-    def getRollingMean(self, df, window=7):
+    def getRollingMean(self, df, windows=[7, 30]):
 
-        df['MA'] = df['240020_Nav'].rolling(window=window, min_periods=3).mean()
-        print df
+        df_1 = pd.DataFrame()
+        df.sort_index(inplace=True, ascending=True)
+        for window in windows:
+            for column in df.columns:
+                df_1["{}_{}".format(str.strip(column), window)] = df[column].rolling(window=window,
+                                                                                     min_periods=5).mean()
+        df = df.join(df_1)
 
+        df.sort_index(inplace=True, ascending=False)
+        return df
 
+    def getNormalization(self, df, method='mv'):
+        from sklearn import preprocessing
+        if method == 'min-max':
+            scaler = preprocessing.MinMaxScaler()
+        else:
+            scaler = preprocessing.StandardScaler()
 
-
+        df = self.getFillNa(df)
+        df = df.replace(np.inf, 0.0)
+        # print df.tail(10)
+        array = df.iloc[:, :].values.astype(np.float32)
+        print array
+        scaled = scaler.fit_transform(array)
+        df_1 = pd.DataFrame(scaled)
+        df_1.columns = df.columns
+        df_1.index = df.index
+        return df_1
 
 
 def main():
     beg_date = '2015-01-01'
     fa = C_Fund_Analysis()
     #fa.loadFundsCumNavInCSV(beg_date, 'basic_filtered.ticker')
+
     df_nav = fa.readFundsDataFromCSV('fund_cum_nav.csv')
     # df_sta = fa.fundsStatistics(df_nav, path='fund_cum_nav_statisic.ticker')
     # df_corr = fa.fundsCorr(df_nav)
@@ -247,7 +271,10 @@ def main():
 
     df_combined = fa.mergeDFs(left=df_filtered, right=df_indices, left_index=True, right_index=True, how='left')
     df_combined = fa.getFillNa(df_combined)
-    fa.getRollingMean(df_combined)
+    df_roll_meaned = fa.getRollingMean(df_combined)
+    # print df_roll_meaned
+    df_scalered = fa.getNormalization(df_roll_meaned)
+    #print df_scalered['240020_Nav'].head(20), df_roll_meaned['240020_Nav'].head(20)
 
 
 if __name__ == "__main__":
