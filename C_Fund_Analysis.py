@@ -112,7 +112,7 @@ class C_Fund_Analysis():
 
     def readFundsDataFromCSV(self, path):
         df_funds_nav = pd.read_csv(path, index_col=0)
-        df_funds_nav.fillna(0.0, inplace=True)
+        df_funds_nav.fillna(method='pad', inplace=True)
         df_funds_nav.replace(to_replace=r'\s+', value=0.0, regex=True, inplace=True)
         df_funds_nav.index = df_funds_nav.index.astype(np.datetime64)
         df_funds_nav = df_funds_nav.iloc[:, :].astype(np.float64)
@@ -121,9 +121,11 @@ class C_Fund_Analysis():
 
     def readIndicesFromCSV(self, beg_date, path):
         df_indices = pd.read_csv(path, ).sort_values('quote_date', ascending=False)
+        df_indices.fillna(method='pad', inplace=True)
         df_indices.set_index('quote_date', inplace=True)
         # beg_date = datetime.strptime(beg_date, '%Y-%m-%d')
         df_indices = df_indices.iloc[df_indices.index >= beg_date]
+        df_indices = df_indices.iloc[:, :].astype(np.float32)
         # print df_indices
         return df_indices
 
@@ -211,11 +213,12 @@ class C_Fund_Analysis():
 
     def mergeDFs(self, left, right, on=None, how='outer', left_index=False, right_index=False, sort=False):
         df = left.merge(right, on=on, how=how, left_index=left_index, right_index=right_index, sort=sort)
+        df.fillna(inplace=True, method='pad')
         df.sort_index(inplace=True, ascending=False)
         return df
 
     def getFillNa(self, df, method='ffill'):
-        df.fillna(method='ffill', inplace=True)
+        df.fillna(method=method, inplace=True)
         return df
 
     def getRollingMean(self, df, windows=[7, 30]):
@@ -232,49 +235,134 @@ class C_Fund_Analysis():
         return df
 
     def getNormalization(self, df, method='mv'):
-        from sklearn import preprocessing
+        '''
         if method == 'min-max':
             scaler = preprocessing.MinMaxScaler()
         else:
             scaler = preprocessing.StandardScaler()
 
+        from sklearn import preprocessing
         df = self.getFillNa(df)
         df = df.replace(np.inf, 0.0)
         # print df.tail(10)
         array = df.iloc[:, :].values.astype(np.float32)
-        print array
         scaled = scaler.fit_transform(array)
         df_1 = pd.DataFrame(scaled)
         df_1.columns = df.columns
         df_1.index = df.index
+        '''
+        df_1 = pd.DataFrame()
+        df = self.getFillNa(df, method='pad')
+        for column in df:
+            # print column, df[column].mean(), df[column].std()
+            df_1[column] = (df[column] - df[column].mean()) / df[column].std()
+
         return df_1
+
+    def getOutlier(self, df):
+        for column in df:
+            avg = df[column].mean()
+            std = df[column].std()
+            std_3 = 3. * std
+            std_n_3 = -3. * std
+            # print column, avg , std, std_3, std_n_3
+            df[column] = [std_3 if (x - avg) > std_3 else x for x in df[column]]
+            df[column] = [std_n_3 if (x - avg) < std_n_3 else x for x in df[column]]
+        # print df - df_1
+        return df
+
+    def getDailyLogIncrease(self, df, funds):
+        df.sort_index(inplace=True, ascending=True)
+        for column in df[funds]:
+            df['{}_{}'.format(column, 'linc')] = np.log(df[column]).pct_change()
+        df.fillna(0.0, inplace=True)
+        df.sort_index(inplace=True, ascending=False)
+        return df
+
+    def getSamplesDegrouped(self, df, funds):
+        '''
+        Degrouped by calendar week
+        :param df:
+        :param period:
+        :return:
+        '''
+        samples_sets = []
+        fund_samples = []
+        indexes = []
+
+        b_y = df.index[0].isocalendar()[0]
+        b_w = df.index[0].isocalendar()[1]
+
+        for date in df.index:
+            year = date.isocalendar()[0]
+            week = date.isocalendar()[1]
+            if (b_y == year) and (b_w == week):
+                indexes.append(date)
+            else:
+                # df_sample = df.loc[df.index.isin(indexes)]
+                samples_sets.append(df.loc[df.index.isin(indexes)])
+                indexes = []
+                b_y, b_w = year, week
+                indexes.append(date)
+        return samples_sets
+
+    def getLabelVectors(self, sample_sets, funds, boundary):
+        label_sets = []
+        up = boundary
+        low = -1 * up
+        u_c = 0
+        l_c = 0
+        c = 0
+        for fund in funds:
+            labels = []
+            for sample in sample_sets:
+                w_inc = sample['{}_{}'.format(fund, 'linc')].sum()
+                label = 0
+                if w_inc > up:
+                    label = [1, 0]
+                    u_c += 1
+                elif w_inc < low:
+                    label = [0, 1]
+                    l_c += 1
+                else:
+                    label = [0, 0]
+                    c += 1
+                labels.append(label)
+
+            label_sets.append(labels)
+            label_sets.append(
+                ["fund: {}, Boundary: {}, Up: {}, Down: {}, Stay: {}".format(fund, boundary, u_c, l_c, c)])
+        return label_sets
+
 
 
 def main():
     beg_date = '2015-01-01'
+    # funds = ['240020_Nav', '002001_Nav','460005_Nav']
+    funds = ['240020_Nav']
     fa = C_Fund_Analysis()
     #fa.loadFundsCumNavInCSV(beg_date, 'basic_filtered.ticker')
 
     df_nav = fa.readFundsDataFromCSV('fund_cum_nav.csv')
-    # df_sta = fa.fundsStatistics(df_nav, path='fund_cum_nav_statisic.ticker')
-    # df_corr = fa.fundsCorr(df_nav)
-
-    df_filtered = fa.getDedicateFunds(df_nav, ['240020_Nav', '002001_Nav','460005_Nav'])
-    #df_sta = fa.fundsStatistics(df_filtered)
-    #print df_sta
-    #df_corr = fa.fundsCorr(df_filtered)
-    # fa.plotCorrHeadMap(df_corr)
-    #print df_filtered
-
+    df_filtered = fa.getDedicateFunds(df_nav, funds)
+    '''
+    # Statistic Analysis
+    df_sta = fa.fundsStatistics(df_filtered)
+    print df_sta
+    df_corr = fa.fundsCorr(df_filtered)
+    fa.plotCorrHeadMap(df_corr)
+    print df_filtered
+    '''
     df_indices = fa.readIndicesFromCSV(beg_date, 'indices_data.csv')
-    # print df_indices
-
     df_combined = fa.mergeDFs(left=df_filtered, right=df_indices, left_index=True, right_index=True, how='left')
-    df_combined = fa.getFillNa(df_combined)
     df_roll_meaned = fa.getRollingMean(df_combined)
-    # print df_roll_meaned
-    df_scalered = fa.getNormalization(df_roll_meaned)
-    #print df_scalered['240020_Nav'].head(20), df_roll_meaned['240020_Nav'].head(20)
+    df_linc = fa.getDailyLogIncrease(df_roll_meaned, funds)
+    df_normalized = fa.getNormalization(df_linc)
+    df_outlierd = fa.getOutlier(df_normalized)
+    sample_sets = fa.getSamplesDegrouped(df_outlierd)
+    label_sets = fa.getLabelVectors(sample_sets, funds, 0.6)
+    print label_sets
+
 
 
 if __name__ == "__main__":
