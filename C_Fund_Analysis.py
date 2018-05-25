@@ -416,6 +416,9 @@ class C_Fund_Data_PreProcession():
         pos = int(len(list) * por)
         return list[0:pos], list[pos:]
 
+    def writeIntoCSV(self, df, path):
+        df.to_csv(path, header=True, sep=',', index=0)
+
 
 def main():
     beg_date = '2015-01-01'
@@ -447,8 +450,6 @@ def main():
     sample_sets = dpp.getSamplesDegrouped(df_outlierd, funds)
     label_sets = dpp.getLabelVectors3levels(sample_sets, funds, up=0.6, low=-0.6)
     train_sets, cv_sets, test_sets = dpp.getDataSets(sample_sets, label_sets, cv_por=0.15, test_por=0.15)
-    print len(train_sets['sample_sets']), len(cv_sets['sample_sets']), len(test_sets['sample_sets'])
-    print len(train_sets['label_sets']), len(cv_sets['label_sets']), len(test_sets['label_sets'])
 
 
 if __name__ == "__main__":
