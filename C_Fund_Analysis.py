@@ -17,6 +17,7 @@ from sqlalchemy import select
 from C_Fund import FundInstance
 import pandas as pd
 import numpy as np
+import random
 from datetime import datetime, date, timedelta
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -119,16 +120,6 @@ class C_Fund_Analysis():
         # print df_funds_nav
         return df_funds_nav
 
-    def readIndicesFromCSV(self, beg_date, path):
-        df_indices = pd.read_csv(path, ).sort_values('quote_date', ascending=False)
-        df_indices.fillna(method='pad', inplace=True)
-        df_indices.set_index('quote_date', inplace=True)
-        # beg_date = datetime.strptime(beg_date, '%Y-%m-%d')
-        df_indices = df_indices.iloc[df_indices.index >= beg_date]
-        df_indices = df_indices.iloc[:, :].astype(np.float32)
-        # print df_indices
-        return df_indices
-
     def fundsCorr(self, df_funds_nav):
         df_corr = df_funds_nav.corr()
         return df_corr
@@ -211,6 +202,24 @@ class C_Fund_Analysis():
         with open(path, 'wb') as f:
             pickle.dump(data, f)
 
+    def getFillNa(self, df, method='ffill'):
+        df.fillna(method=method, inplace=True)
+        return df
+
+
+class C_Fund_Data_PreProcession():
+    def readIndicesFromCSV(self, beg_date, path):
+        df_indices = pd.read_csv(path, ).sort_values('quote_date', ascending=False)
+        df_indices.fillna(method='pad', inplace=True)
+        df_indices.set_index('quote_date', inplace=True)
+        df_indices = df_indices.iloc[df_indices.index >= beg_date]
+        # df_indices.replace(' ', 0.0)
+        # print df_indices.head(10)
+        # print len(df_indices.iloc[0:1, -2:-1][0])
+        df_indices = df_indices.iloc[:, :].astype(np.float32)
+        # print df_indices
+        return df_indices
+
     def mergeDFs(self, left, right, on=None, how='outer', left_index=False, right_index=False, sort=False):
         df = left.merge(right, on=on, how=how, left_index=left_index, right_index=right_index, sort=sort)
         df.fillna(inplace=True, method='pad')
@@ -292,7 +301,7 @@ class C_Fund_Analysis():
 
         b_y = df.index[0].isocalendar()[0]
         b_w = df.index[0].isocalendar()[1]
-
+        #print b_y, b_w
         for date in df.index:
             year = date.isocalendar()[0]
             week = date.isocalendar()[1]
@@ -306,40 +315,114 @@ class C_Fund_Analysis():
                 indexes.append(date)
         return samples_sets
 
-    def getLabelVectors(self, sample_sets, funds, boundary):
+    def getLabelVectors5Levels(self, sample_sets, funds, up, down):
         label_sets = []
-        up = boundary
-        low = -1 * up
+        up = up
+        up_2 = 3 * up
+        low = down
+        low_2 = 3 *low
         u_c = 0
+        u_c_2 = 0
         l_c = 0
+        l_c_2 = 0
         c = 0
+        print 'up2: {}, up:{}, low:{}, low2:{}'.format(up_2, up, low, low_2)
         for fund in funds:
             labels = []
             for sample in sample_sets:
                 w_inc = sample['{}_{}'.format(fund, 'linc')].sum()
-                label = 0
-                if w_inc > up:
-                    label = [1, 0]
+                print w_inc
+                if w_inc > up_2:
+                    label = [1, 0, 0, 0, 0]
+                    u_c_2 += 1
+                elif (w_inc <= up_2) and (w_inc > up):
+                    label = [0, 1, 0, 0, 0]
                     u_c += 1
-                elif w_inc < low:
-                    label = [0, 1]
+                elif w_inc < low_2:
+                    label = [0, 0, 0, 0, 1]
+                    l_c_2 += 1
+                elif (w_inc >= low_2) and (w_inc < low):
+                    label = [0, 0, 0, 1, 0]
                     l_c += 1
                 else:
-                    label = [0, 0]
+                    label = [0, 0, 1, 0, 0]
                     c += 1
                 labels.append(label)
 
             label_sets.append(labels)
             label_sets.append(
-                ["fund: {}, Boundary: {}, Up: {}, Down: {}, Stay: {}".format(fund, boundary, u_c, l_c, c)])
+                ["fund: {}, Boundary: {}, Up2: {}, Up: {},  Stay: {}, Low:{}, Low2:{}".format(fund, (up, down), u_c_2,
+                                                                                              u_c, c, l_c, l_c_2)])
         return label_sets
 
+    def getLabelVectors3levels(self, sample_sets, funds, up, low):
+        label_sets = []
+        u_c = 0
+        l_c = 0
+        c = 0
+        # print 'up:{}, low:{}'.format(up, low)
+        for fund in funds:
+            labels = []
+            for sample in sample_sets:
+                w_inc = sample['{}_{}'.format(fund, 'linc')].sum()
+                if (w_inc > up):
+                    label = [1, 0, 0]
+                    u_c += 1
+                elif w_inc < low:
+                    label = [0, 0, 1]
+                    l_c += 1
+                else:
+                    label = [0, 1, 0]
+                    c += 1
+                labels.append(label)
+
+            label_sets.append(labels)
+            label_sets.append(
+                ["fund: {}, Boundary: {}, Up: {},  Stay: {}, Low:{}".format(fund, (up, low), u_c, c, l_c)])
+        return label_sets
+
+    def getDataSets(self, sample_sets, label_sets, cv_por, test_por):
+        train_sets, cross_validation_sets, test_sets = {}, {}, {}
+        # Matching the t period features to t+1 period label
+        # by pop out the first feature element and last label element
+        sample_sets.pop(0)
+        label_sets = label_sets[0]
+        label_sets.pop()
+
+        # Shuffle sample_sets and label_sets
+        sample_sets, label_sets, idx_order = self.__shuffle_lists(sample_sets, label_sets)
+
+        # Getting CV samples:
+        cross_validation_sets['sample_sets'], rest_sample_sets = self.__getSubSets(cv_por, sample_sets)
+        cross_validation_sets['label_sets'], rest_label_sets = self.__getSubSets(cv_por, label_sets)
+
+        # Getting testing and training samples:
+        test_sets['sample_sets'], train_sets['sample_sets'] = self.__getSubSets(test_por, rest_sample_sets)
+        test_sets['label_sets'], train_sets['label_sets'] = self.__getSubSets(test_por, rest_label_sets)
+
+        return train_sets, cross_validation_sets, test_sets
+
+    def __shuffle_lists(self, sample, label):
+        l1, l2 = [], []
+        idx = range(len(sample))
+        random.seed(1)
+        random.shuffle(idx)
+        for i in idx:
+            l1.append(sample[i])
+            l2.append(label[i])
+        return l1, l2, idx
+
+    def __getSubSets(self, por, list):
+        pos = int(len(list) * por)
+        return list[0:pos], list[pos:]
 
 
 def main():
     beg_date = '2015-01-01'
     # funds = ['240020_Nav', '002001_Nav','460005_Nav']
-    funds = ['240020_Nav']
+    # funds = ['240020_Nav']
+    funds = ['002001_Nav']
+    #funds = ['460005_Nav']
     fa = C_Fund_Analysis()
     #fa.loadFundsCumNavInCSV(beg_date, 'basic_filtered.ticker')
 
@@ -353,16 +436,19 @@ def main():
     fa.plotCorrHeadMap(df_corr)
     print df_filtered
     '''
-    df_indices = fa.readIndicesFromCSV(beg_date, 'indices_data.csv')
-    df_combined = fa.mergeDFs(left=df_filtered, right=df_indices, left_index=True, right_index=True, how='left')
-    df_roll_meaned = fa.getRollingMean(df_combined)
-    df_linc = fa.getDailyLogIncrease(df_roll_meaned, funds)
-    df_normalized = fa.getNormalization(df_linc)
-    df_outlierd = fa.getOutlier(df_normalized)
-    sample_sets = fa.getSamplesDegrouped(df_outlierd)
-    label_sets = fa.getLabelVectors(sample_sets, funds, 0.6)
-    print label_sets
 
+    dpp = C_Fund_Data_PreProcession()
+    df_indices = dpp.readIndicesFromCSV(beg_date, 'indices_data.csv')
+    df_combined = dpp.mergeDFs(left=df_filtered, right=df_indices, left_index=True, right_index=True, how='left')
+    df_roll_meaned = dpp.getRollingMean(df_combined)
+    df_linc = dpp.getDailyLogIncrease(df_roll_meaned, funds)
+    df_normalized = dpp.getNormalization(df_linc)
+    df_outlierd = dpp.getOutlier(df_normalized)
+    sample_sets = dpp.getSamplesDegrouped(df_outlierd, funds)
+    label_sets = dpp.getLabelVectors3levels(sample_sets, funds, up=0.6, low=-0.6)
+    train_sets, cv_sets, test_sets = dpp.getDataSets(sample_sets, label_sets, cv_por=0.15, test_por=0.15)
+    print len(train_sets['sample_sets']), len(cv_sets['sample_sets']), len(test_sets['sample_sets'])
+    print len(train_sets['label_sets']), len(cv_sets['label_sets']), len(test_sets['label_sets'])
 
 
 if __name__ == "__main__":

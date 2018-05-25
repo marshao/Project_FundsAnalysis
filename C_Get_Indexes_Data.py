@@ -335,7 +335,8 @@ class StockIndexesSpider():
                 else:
                     df_indices = df_indices.merge(right=df_temp, how='outer', on='quote_date')
             # df_indices.set_index('quote_date')
-            df_indices.to_csv('indices_data.csv', header=True, sep=',', float_format='%.4f', index=0)
+            # df_indices.to_csv('indices_data.csv', header=True, sep=',', float_format='%.4f', index=0)
+            df_indices.to_csv('indices_data.csv', header=True, sep=',', index=0)
             # print df_indices
         except Exception as e:
             print e
