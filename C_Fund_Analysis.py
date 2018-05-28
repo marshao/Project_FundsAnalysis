@@ -420,14 +420,9 @@ class C_Fund_Data_PreProcession():
         df.to_csv(path, header=True, sep=',', index=0)
 
 
-def main():
-    beg_date = '2015-01-01'
-    # funds = ['240020_Nav', '002001_Nav','460005_Nav']
-    # funds = ['240020_Nav']
-    funds = ['002001_Nav']
-    #funds = ['460005_Nav']
+def fund_Analysis(beg_date, funds):
     fa = C_Fund_Analysis()
-    #fa.loadFundsCumNavInCSV(beg_date, 'basic_filtered.ticker')
+    # fa.loadFundsCumNavInCSV(beg_date, 'basic_filtered.ticker')
 
     df_nav = fa.readFundsDataFromCSV('fund_cum_nav.csv')
     df_filtered = fa.getDedicateFunds(df_nav, funds)
@@ -439,7 +434,10 @@ def main():
     fa.plotCorrHeadMap(df_corr)
     print df_filtered
     '''
+    return df_filtered
 
+
+def fund_data_proprocessing(beg_date, funds, df_filtered):
     dpp = C_Fund_Data_PreProcession()
     df_indices = dpp.readIndicesFromCSV(beg_date, 'indices_data.csv')
     df_combined = dpp.mergeDFs(left=df_filtered, right=df_indices, left_index=True, right_index=True, how='left')
@@ -450,6 +448,19 @@ def main():
     sample_sets = dpp.getSamplesDegrouped(df_outlierd, funds)
     label_sets = dpp.getLabelVectors3levels(sample_sets, funds, up=0.6, low=-0.6)
     train_sets, cv_sets, test_sets = dpp.getDataSets(sample_sets, label_sets, cv_por=0.15, test_por=0.15)
+    return train_sets, cv_sets, test_sets
+
+def main():
+    beg_date = '2015-01-01'
+    # funds = ['240020_Nav', '002001_Nav','460005_Nav']
+    # funds = ['240020_Nav']
+    funds = ['002001_Nav']
+    #funds = ['460005_Nav']
+    df_filtered = fund_Analysis(beg_date, funds)
+    train_sets, cv_sets, test_sets = fund_data_proprocessing(beg_date, funds, df_filtered)
+    print cv_sets
+
+
 
 
 if __name__ == "__main__":

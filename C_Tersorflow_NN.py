@@ -1,23 +1,72 @@
 from __future__ import print_function
 
-# Import MNIST data
-from tensorflow.examples.tutorials.mnist import input_data
-
-mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
-
+from C_Fund_Analysis import fund_Analysis, fund_data_proprocessing
+import numpy as np
+import pandas as pd
 import tensorflow as tf
 
+beg_date = '2015-01-01'
+funds = ['002001_Nav']
+df_filtered = fund_Analysis(beg_date, funds)
+train_sets, cv_sets, test_sets = fund_data_proprocessing(beg_date, funds, df_filtered)
+
+
+def getFeatures(samples):
+    array_z = np.zeros((1, 395), dtype=np.float32)
+    for sample in samples:
+        row, col = sample.shape
+        columns = sample.columns
+        em_rows = 5 - row
+        if em_rows > 0:
+            df = pd.DataFrame(np.zeros((em_rows, col)), columns=columns)
+            sample = pd.concat([sample, df])
+        if em_rows < 0:
+            sample = sample.iloc[1:, :]
+
+        if array_z[0, 0] == 0:
+            array = np.array(sample.values)
+            array_z = np.reshape(array, (1, -1))
+        else:
+            array = np.array(sample.values)
+            array_z = np.vstack((array_z, np.reshape(array, (1, -1))))
+
+    return array_z
+
+
+def getLabels(labels):
+    labels = np.array(labels)
+    return labels
+
+
+def getTFDataSets(each_set):
+    samples = each_set['sample_sets']
+    labels = each_set['label_sets']
+
+    features = getFeatures(samples)
+    labels = getLabels(labels)
+
+    tf_features = tf.constant(features, dtype=features.dtype, shape=features.shape)
+    tf_labels = tf.constant(labels, dtype=features.dtype, shape=features.shape)
+    # return tf.data.Dataset.from_tensor_slices((features, labels))
+    return features, labels
+
+
+train_f, train_l = getTFDataSets(train_sets)
+cv_f, cv_l = getTFDataSets(cv_sets)
+test_f, test_l = getTFDataSets(test_sets)
+
+
 # Parameters
-learning_rate = 0.1
-num_steps = 500
+learning_rate = 0.01
+num_steps = 1500
 batch_size = 128
 display_step = 100
 
 # Network Parameters
 n_hidden_1 = 256  # 1st layer number of neurons
 n_hidden_2 = 256  # 2nd layer number of neurons
-num_input = 784  # MNIST data input (img shape: 28*28)
-num_classes = 10  # MNIST total classes (0-9 digits)
+num_input = 395  # MNIST data input (img shape: 28*28)
+num_classes = 3  # MNIST total classes (0-9 digits)
 
 # tf Graph input
 X = tf.placeholder("float", [None, num_input])
@@ -70,13 +119,13 @@ with tf.Session() as sess:
     sess.run(init)
 
     for step in range(1, num_steps + 1):
-        batch_x, batch_y = mnist.train.next_batch(batch_size)
+        # batch_x, batch_y = mnist.train.next_batch(batch_size)
         # Run optimization op (backprop)
-        sess.run(train_op, feed_dict={X: batch_x, Y: batch_y})
+        sess.run(train_op, feed_dict={X: train_f, Y: train_l})
         if step % display_step == 0 or step == 1:
             # Calculate batch loss and accuracy
-            loss, acc = sess.run([loss_op, accuracy], feed_dict={X: batch_x,
-                                                                 Y: batch_y})
+            loss, acc = sess.run([loss_op, accuracy], feed_dict={X: train_f,
+                                                                 Y: train_l})
             print("Step " + str(step) + ", Minibatch Loss= " + \
                   "{:.4f}".format(loss) + ", Training Accuracy= " + \
                   "{:.3f}".format(acc))
@@ -85,5 +134,5 @@ with tf.Session() as sess:
 
     # Calculate accuracy for MNIST test images
     print("Testing Accuracy:", \
-          sess.run(accuracy, feed_dict={X: mnist.test.images,
-                                        Y: mnist.test.labels}))
+          sess.run(accuracy, feed_dict={X: cv_f,
+                                        Y: cv_l}))
