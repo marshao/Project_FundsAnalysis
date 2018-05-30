@@ -57,14 +57,15 @@ test_f, test_l = getTFDataSets(test_sets)
 
 
 # Parameters
-learning_rate = 0.01
-num_steps = 1500
+learning_rate = 0.00001
+num_steps = 50000
 batch_size = 128
 display_step = 100
 
 # Network Parameters
-n_hidden_1 = 256  # 1st layer number of neurons
-n_hidden_2 = 256  # 2nd layer number of neurons
+n_hidden_1 = 1024  # 1st layer number of neurons
+n_hidden_2 = 512  # 2nd layer number of neurons
+n_hidden_3 = 128  # 2nd layer number of neurons
 num_input = 395  # MNIST data input (img shape: 28*28)
 num_classes = 3  # MNIST total classes (0-9 digits)
 
@@ -76,11 +77,13 @@ Y = tf.placeholder("float", [None, num_classes])
 weights = {
     'h1': tf.Variable(tf.random_normal([num_input, n_hidden_1])),
     'h2': tf.Variable(tf.random_normal([n_hidden_1, n_hidden_2])),
-    'out': tf.Variable(tf.random_normal([n_hidden_2, num_classes]))
+    'h3': tf.Variable(tf.random_normal([n_hidden_2, n_hidden_3])),
+    'out': tf.Variable(tf.random_normal([n_hidden_3, num_classes]))
 }
 biases = {
     'b1': tf.Variable(tf.random_normal([n_hidden_1])),
     'b2': tf.Variable(tf.random_normal([n_hidden_2])),
+    'b3': tf.Variable(tf.random_normal([n_hidden_3])),
     'out': tf.Variable(tf.random_normal([num_classes]))
 }
 
@@ -91,8 +94,10 @@ def neural_net(x):
     layer_1 = tf.add(tf.matmul(x, weights['h1']), biases['b1'])
     # Hidden fully connected layer with 256 neurons
     layer_2 = tf.add(tf.matmul(layer_1, weights['h2']), biases['b2'])
+    # Hidden fully connected layer with 256 neurons
+    layer_3 = tf.add(tf.matmul(layer_2, weights['h3']), biases['b3'])
     # Output fully connected layer with a neuron for each class
-    out_layer = tf.matmul(layer_2, weights['out']) + biases['out']
+    out_layer = tf.matmul(layer_3, weights['out']) + biases['out']
     return out_layer
 
 

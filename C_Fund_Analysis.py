@@ -288,7 +288,7 @@ class C_Fund_Data_PreProcession():
         df.sort_index(inplace=True, ascending=False)
         return df
 
-    def getSamplesDegrouped(self, df, funds):
+    def getSamplesDegroupedByWeek(self, df, funds):
         '''
         Degrouped by calendar week
         :param df:
@@ -314,6 +314,51 @@ class C_Fund_Data_PreProcession():
                 b_y, b_w = year, week
                 indexes.append(date)
         return samples_sets
+
+    def getDegroupedSampleByRolling(self, df, funds, period=5):
+        '''
+        Degrouped by rolling period
+        sample group , if t = now.date then first gourp is (t-period to t- 2*period)
+        labels group, if t = now.date then frist lable is sum(t to t-period+5)
+        :param df:
+        :param period:
+        :return:
+        '''
+        sample_sets = []
+        count = df.shape[0]
+        # print b_y, b_w
+        for i in range(period * 2, count + 1):
+            df_t = df.iloc[i - period:i, :]
+            sample_sets.append(df_t)
+        return sample_sets
+
+    def getDegroupedLabelVectors3levelsByRolling(self, df, funds, up, low, period=5):
+        label_sets = []
+        u_c = 0
+        l_c = 0
+        c = 0
+        count = df.shape[0]
+        # print 'up:{}, low:{}'.format(up, low)
+        for fund in funds:
+            labels = []
+            for i in range(0, (count + 1 - 2 * period)):
+                w_inc = df['{}_{}'.format(fund, 'linc')][i:i + period].sum()
+                if (w_inc > up):
+                    label = [1, 0, 0]
+                    u_c += 1
+                elif w_inc < low:
+                    label = [0, 0, 1]
+                    l_c += 1
+                else:
+                    label = [0, 1, 0]
+                    c += 1
+                labels.append(label)
+
+            label_sets.append(labels)
+            label_sets.append(
+                ["fund: {}, Boundary: {}, Up: {},  Stay: {}, Low:{}".format(fund, (up, low), u_c, c, l_c)])
+
+        return label_sets
 
     def getLabelVectors5Levels(self, sample_sets, funds, up, down):
         label_sets = []
@@ -437,7 +482,8 @@ def fund_Analysis(beg_date, funds):
     return df_filtered
 
 
-def fund_data_proprocessing(beg_date, funds, df_filtered):
+def fund_data_proprocessing(beg_date, funds, df_filtered, degroup='Roll'):
+    period = 5
     dpp = C_Fund_Data_PreProcession()
     df_indices = dpp.readIndicesFromCSV(beg_date, 'indices_data.csv')
     df_combined = dpp.mergeDFs(left=df_filtered, right=df_indices, left_index=True, right_index=True, how='left')
@@ -445,8 +491,15 @@ def fund_data_proprocessing(beg_date, funds, df_filtered):
     df_linc = dpp.getDailyLogIncrease(df_roll_meaned, funds)
     df_normalized = dpp.getNormalization(df_linc)
     df_outlierd = dpp.getOutlier(df_normalized)
-    sample_sets = dpp.getSamplesDegrouped(df_outlierd, funds)
-    label_sets = dpp.getLabelVectors3levels(sample_sets, funds, up=0.6, low=-0.6)
+    if degroup == 'Roll':
+        # NN Period Rolling Degoup
+        sample_sets = dpp.getDegroupedSampleByRolling(df_outlierd, funds, period=period)
+        label_sets = dpp.getDegroupedLabelVectors3levelsByRolling(df_outlierd, funds, up=0.9, low=-0.6, period=period)
+    elif degroup == 'Week':
+        # Calendar Week Degroup
+        sample_sets = dpp.getSamplesDegroupedByWeek(df_outlierd, funds)
+        label_sets = dpp.getLabelVectors3levels(sample_sets, funds, up=0.6, low=-0.6)
+
     train_sets, cv_sets, test_sets = dpp.getDataSets(sample_sets, label_sets, cv_por=0.15, test_por=0.15)
     return train_sets, cv_sets, test_sets
 
@@ -457,8 +510,9 @@ def main():
     funds = ['002001_Nav']
     #funds = ['460005_Nav']
     df_filtered = fund_Analysis(beg_date, funds)
+    fund_data_proprocessing(beg_date, funds, df_filtered)
     train_sets, cv_sets, test_sets = fund_data_proprocessing(beg_date, funds, df_filtered)
-    print cv_sets
+    #print len(cv_sets['sample_sets']), len(train_sets['sample_sets'])
 
 
 
