@@ -15,12 +15,6 @@ parser.add_argument('--train_steps', default=500, type=int)
 
 
 def getFeatures(samples):
-    # I like to create a 3 Dimensions Sample Sets:
-    # D0: Calendar Days in a week
-    # D1: Features
-    # D0 * D1 make up one sample
-    # D2: Calendar Weeks for samples make up sample set
-
     array_z = np.zeros((1, 395), dtype=np.float32)
     feature_name = samples[0].columns.tolist()
     feature_name = feature_name * 5
@@ -49,8 +43,8 @@ def getFeatures(samples):
             array = np.array(sample.values)
             array_z = np.vstack((array_z, np.reshape(array, (1, -1))))
 
-    features_data = pd.DataFrame(array_z, columns=feature_name)
-
+    # features_data = pd.DataFrame(array_z, columns=feature_name)
+    features_data = array_z
     return features_data, feature_name
 
 
@@ -58,6 +52,7 @@ def getLabels(labels):
     labels = pd.DataFrame(labels)
     # labels = np.array(labels)
     labels = labels.idxmax(axis=1)
+    labels = np.array(labels.values)
     # print labels
     return labels
 
@@ -74,29 +69,6 @@ def getTFDataSets(each_set):
     # print features_data.index, labels.index
     # return tf.data.Dataset.from_tensor_slices((features, labels)), features_name
     return features_data, features_name, labels
-
-
-def train_input_fn(feature, label, batch_size=128, shuffle=False):
-    inputs = (dict(feature), label)
-    # print inputs
-    dataset = tf.data.Dataset.from_tensor_slices(inputs)
-    dataset = dataset.repeat().batch(batch_size)
-    # print dataset
-    return feature, label
-
-
-def test_input_fn(feature, label=None, batch_size=128, shuffle=False):
-    # features = dict(feature)
-    if label is None:
-        # inputs = features
-        return feature
-    else:
-        # inputs = (features, label)
-        return feature, label
-    # print type(inputs)
-        #dataset = tf.data.Dataset.from_tensor_slices(inputs).batch(batch_size)
-
-
 
 
 def lstm_model_fn(features, labels, mode):
@@ -124,14 +96,14 @@ def lstm_model_fn(features, labels, mode):
     drop_out = 0.4
     lr = 0.0001
 
-    # feature = features[0]
-    # label = features[1]
-
-    X_in = tf.reshape(features, [-1, time_step, n_input])
+    # features = features["x"]
+    # labels = features[]
+    print features
+    X_in = tf.reshape(features["x"], [-1, time_step, n_input])
 
     lstm_cell_1 = tf.contrib.rnn.BasicLSTMCell(hidden_units[0], forget_bias=1.0, state_is_tuple=True)
 
-    #lstm_cell_2 = tf.contrib.rnn.BasicLSTMCell(hidden_units[1], forget_bias=1.0, state_is_tuple=True)
+    # lstm_cell_2 = tf.contrib.rnn.BasicLSTMCell(hidden_units[1], forget_bias=1.0, state_is_tuple=True)
 
     # multi_lstm_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell_1, lstm_cell_2])
 
@@ -139,7 +111,7 @@ def lstm_model_fn(features, labels, mode):
     outputs, last_state = tf.nn.dynamic_rnn(cell=lstm_cell_1, inputs=X_in, dtype=tf.float64)
     # shape: outputs:[None, 5, 256]t
     # shape: last_state:[None, 256]
-    #print last_state
+    # print last_state
 
     dnn_1 = tf.layers.dense(inputs=last_state[1], units=1024, activation=tf.nn.relu, name='dnn_1')
     # shape:[None, 1024]
@@ -180,13 +152,31 @@ def main(argv):
 
     beg_date = '2015-01-01'
     funds = ['002001_Nav']
-    train_steps = 200
+    train_steps = 2000
     df_filtered = fund_Analysis(beg_date, funds)
 
     train_sets, cv_sets, test_sets = fund_data_proprocessing(beg_date, funds, df_filtered, 'Week')
     test_features_data, features_name, test_labels = getTFDataSets(test_sets)
     train_features_data, _, train_labels = getTFDataSets(train_sets)
     cv_features_data, _, cv_labels = getTFDataSets(cv_sets)
+
+    train_input_fn = tf.estimator.inputs.numpy_input_fn(x={"x": train_features_data},
+                                                        y=train_labels,
+                                                        batch_size=50,
+                                                        num_epochs=None,
+                                                        shuffle=False
+                                                        )
+    eval_input_fn = tf.estimator.inputs.numpy_input_fn(x={"x": cv_features_data},
+                                                       y=cv_labels,
+                                                       batch_size=50,
+                                                       num_epochs=None,
+                                                       shuffle=False
+                                                       )
+    pred_input_fn = tf.estimator.inputs.numpy_input_fn(x={"x": test_features_data},
+                                                       batch_size=50,
+                                                       num_epochs=None,
+                                                       shuffle=False
+                                                       )
 
     # Define Esitmaters
     feature_cols = [tf.feature_column.numeric_column(k) for k in features_name]
@@ -199,13 +189,11 @@ def main(argv):
     classifier = tf.estimator.Estimator(model_fn=lstm_model_fn,
                                         model_dir="/home/marshao/DataMiningProjects/Project_FundsAnalysis/LSTM")
 
-    #train_op = classifier.train(input_fn=lambda: train_input_fn(train_features_data, train_labels),
-    #                            max_steps=train_steps, hooks=[logging_hook])
+    train_op = classifier.train(input_fn=train_input_fn, max_steps=train_steps, hooks=[logging_hook])
     # print train_op
-    # eval_results = classifier.evaluate(input_fn=lambda: train_input_fn(cv_features_data, cv_labels), checkpoint_path=None)
+    # eval_results = classifier.evaluate(input_fn=eval_input_fn, checkpoint_path=None)
     # print eval_results
-    prediction_results = list(
-        classifier.predict(input_fn=lambda: test_input_fn(test_features_data), checkpoint_path=None))
+    prediction_results = list(classifier.predict(input_fn=pred_input_fn, checkpoint_path=None))
     print prediction_results[0]['probabilities']
     print prediction_results[0]['classes']
 
