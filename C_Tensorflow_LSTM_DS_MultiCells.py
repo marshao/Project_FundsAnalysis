@@ -151,11 +151,15 @@ def main(argv):
     args = parser.parse_args(argv[1:])
 
     beg_date = '2015-01-01'
-    funds = ['002001_Nav']
-    train_steps = 16000
+    # funds = ['002001_Nav']
+    funds = ['240020_Nav']
+    train_steps = 2000
     df_filtered = fund_Analysis(beg_date, funds)
 
     train_sets, cv_sets, test_sets = fund_data_proprocessing(beg_date, funds, df_filtered, 'Week')
+    # print train_sets.keys()
+    # print train_sets['sample_sets'][0]
+    #'''
     test_features_data, features_name, test_labels = getTFDataSets(test_sets)
     train_features_data, _, train_labels = getTFDataSets(train_sets)
     cv_features_data, _, cv_labels = getTFDataSets(cv_sets)
@@ -194,7 +198,7 @@ def main(argv):
 
     for each_result in prediction_results:
         print each_result['probabilities'], each_result['classes']
-
+        #'''
 
 if __name__ == '__main__':
     tf.logging.set_verbosity(tf.logging.INFO)
