@@ -21,8 +21,11 @@ sys.setdefaultencoding('utf-8')
 
 class MySQLServer():
 
-    db_engine = create_engine('mysql+mysqldb://marshao:123@10.175.10.231/DB_FundsAnalysis?charset=utf8',
-                              encoding='utf-8', pool_size=150, echo=False)
+    #db_engine = create_engine('mysql+mysqldb://marshao:123@10.175.10.231/DB_FundsAnalysis?charset=utf8',
+    #                          encoding='utf-8', pool_size=150, echo=False)
+    db_engine = create_engine(
+        'mysql+mysqldb://marshao:123@10.176.50.34/DB_FundsAnalysis?charset=utf8',
+        encoding='utf-8', pool_size=150, echo=True)
     DBSession = sessionmaker(bind=db_engine)
     session = DBSession()
     # session.execute('show databases')
@@ -39,11 +42,14 @@ class MySQLServer():
             self.db_engine = create_engine(
             'mysql+mysqldb://marshao:123@10.176.50.233/DB_FundsAnalysis?charset=utf8',
             encoding='utf-8', pool_size=150)
-            '''
+            
         self.db_engine = create_engine(
             'mysql+mysqldb://marshao:123@10.175.10.231/DB_FundsAnalysis?charset=utf8',
             encoding='utf-8', pool_size=150, echo=True)
-
+            '''
+        self.db_engine = create_engine(
+            'mysql+mysqldb://marshao:123@10.176.50.34/DB_FundsAnalysis?charset=utf8',
+            encoding='utf-8', pool_size=150, echo=True)
         #DBSession = sessionmaker(bind=self.db_engine)
         # session = DBSession()
         # session.execute('show databases')
