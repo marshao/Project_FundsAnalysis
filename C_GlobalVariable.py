@@ -20,8 +20,11 @@ class C_GlobalVariable(object):
                               'stock_volume_begin': 0,
                               'period': 'm30',
                               'pro_db_engine': create_engine(
-                                  'mysql+mysqldb://marshao:123@10.175.10.231/DB_StockDataBackTest?charset=utf8',
+                                  'mysql+mysqldb://marshao:123@10.0.0.7/DB_StockDataBackTest?charset=utf8',
                                   encoding='utf-8', pool_size=150),
+                              # 'pro_db_engine': create_engine(
+                              #    'mysql+mysqldb://marshao:123@10.175.10.231/DB_StockDataBackTest?charset=utf8',
+                              #    encoding='utf-8', pool_size=150),
                               'dev_db_engine': create_engine(
                                   'mysql+mysqldb://marshao:123@10.176.50.233/DB_StockDataBackTest?charset=utf8',
                                   encoding='utf-8', pool_size=150)
@@ -36,7 +39,7 @@ class C_GlobalVariable(object):
                                'win_processed_dir': 'D:\Personal\DataMining\\31_Projects\\01.Finance\\03.StockAutoTrades\processed\\',
                                'op_log': 'operLog.txt',
                                'validate_log': 'validateLog.txt',
-                               'pro_back_ip': '10.175.10.231',
+                               'pro_back_ip': '10.0.0.7',
                                'pro_back_name': 'bei1ubt81',
                                'pro_front_ip': '10.175.10.99',
                                'pro_front_name': 'bei1python',

@@ -153,13 +153,13 @@ def main(argv):
     beg_date = '2015-01-01'
     # funds = ['002001_Nav']
     funds = ['240020_Nav']
-    train_steps = 2000
+    train_steps = 5000
     df_filtered = fund_Analysis(beg_date, funds)
 
     train_sets, cv_sets, test_sets = fund_data_proprocessing(beg_date, funds, df_filtered, 'Week')
     # print train_sets.keys()
     # print train_sets['sample_sets'][0]
-    #'''
+    # '''
     test_features_data, features_name, test_labels = getTFDataSets(test_sets)
     train_features_data, _, train_labels = getTFDataSets(train_sets)
     cv_features_data, _, cv_labels = getTFDataSets(cv_sets)
@@ -170,6 +170,7 @@ def main(argv):
                                                         num_epochs=None,
                                                         shuffle=False
                                                         )
+
     eval_input_fn = tf.estimator.inputs.numpy_input_fn(x={"x": cv_features_data},
                                                        y=cv_labels,
                                                        shuffle=False
@@ -189,16 +190,18 @@ def main(argv):
                                         model_dir="/home/ghao/PycharmProjects/Project_FundsAnalysis/LSTM_MultiCells")
 
     # train_op = classifier.train(input_fn=train_input_fn, max_steps=train_steps, hooks=[logging_hook])
-    train_op = classifier.train(input_fn=train_input_fn, max_steps=train_steps)
+    with tf.device('/gpu:0'):
+        train_op = classifier.train(input_fn=train_input_fn, max_steps=train_steps)
     # print train_op
-    eval_results = classifier.evaluate(input_fn=eval_input_fn, checkpoint_path=None)
-    print eval_results
-    # prediction_results = classifier.predict(input_fn=pred_input_fn, checkpoint_path=None)
-    prediction_results = list(classifier.predict(input_fn=pred_input_fn, checkpoint_path=None))
+    with tf.device('/gpu:1'):
+        eval_results = classifier.evaluate(input_fn=eval_input_fn, checkpoint_path=None)
+        print eval_results
+        # prediction_results = classifier.predict(input_fn=pred_input_fn, checkpoint_path=None)
+        prediction_results = list(classifier.predict(input_fn=pred_input_fn, checkpoint_path=None))
 
-    for each_result in prediction_results:
-        print each_result['probabilities'], each_result['classes']
-        #'''
+        for each_result in prediction_results:
+            print each_result['probabilities'], each_result['classes']
+
 
 if __name__ == '__main__':
     tf.logging.set_verbosity(tf.logging.INFO)

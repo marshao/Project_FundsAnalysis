@@ -13,14 +13,13 @@
 #############################################################################
 
 import matplotlib.pyplot as plt
-from matplotlib.finance import _quotes_historical_yahoo, quotes_historical_yahoo_ohlc
 import requests
 import C_MySQL_Server as db
 import re
 from bs4 import BeautifulSoup
 import time, datetime
 import random
-from pandas_datareader import data
+# from pandas_datareader import data
 import pandas as pd
 
 
@@ -153,6 +152,7 @@ class StockIndexesSpider():
         else:
             return res
 
+    '''
     def __getIndicesFromDataReader(self, fund_code=None, period=None, model=None):
         ticker = ['^GSPC', 'SSE.000001']
         start = '2010-01-01'
@@ -161,7 +161,7 @@ class StockIndexesSpider():
         df = data.DataReader('DJI', data_source='morningstar', session=s)
         print df
         return
-
+    '''
     def __getLocalIndices(self, amount=3000):
 
         ticker_sets = ['000001', '000016', '000300', '399001', '399006', '000903', '000905', '000012', '000013']
