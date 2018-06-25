@@ -1,19 +1,7 @@
 # -*- coding:utf-8 -*-
 # !/usr/local/bin/python
-############################################################################
-'''''
-# 程序：东方财富网基金数据爬取
-# 功能：抓取东方财富网上基金相关数据
-# 创建时间：2018/03/19 基金概况数据
-# 更新历史：2017/02/15 增加基金净值数据
-#
-# 使用库：requests、BeautifulSoup4、pymysql,pandas
-# 作者：Guan Hao
-'''
-#############################################################################
 
 import matplotlib.pyplot as plt
-from matplotlib.finance import _quotes_historical_yahoo, quotes_historical_yahoo_ohlc
 import requests
 import C_MySQL_Server as db
 import re
