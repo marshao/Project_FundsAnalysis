@@ -500,7 +500,7 @@ def fund_data_proprocessing(beg_date, funds, df_filtered, degroup='Roll'):
         sample_sets = dpp.getSamplesDegroupedByWeek(df_outlierd, funds)
         label_sets = dpp.getLabelVectors3levels(sample_sets, funds, up=0.6, low=-0.6)
 
-    train_sets, cv_sets, test_sets = dpp.getDataSets(sample_sets, label_sets, cv_por=0.15, test_por=0.15)
+	train_sets, cv_sets, test_sets = dpp.getDataSets(sample_sets, label_sets, cv_por=0.1, test_por=0.1)
     return train_sets, cv_sets, test_sets
 
 def main():

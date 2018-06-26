@@ -1,14 +1,12 @@
 # -*- coding:utf-8 -*-
 # !/usr/local/bin/python
 
-import matplotlib.pyplot as plt
+
 import requests
 import C_MySQL_Server as db
-import re
-from bs4 import BeautifulSoup
-import time, datetime
+import time
+import datetime
 import random
-# from pandas_datareader import data
 import pandas as pd
 
 

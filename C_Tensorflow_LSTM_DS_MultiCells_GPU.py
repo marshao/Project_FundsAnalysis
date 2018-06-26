@@ -90,27 +90,36 @@ def lstm_model_fn(features, labels, mode):
     '''
 
     time_step = cell_numbers = 5
-    hidden_units = [256, 256]  # hidden unit size
+    hidden_units = 512  # hidden unit size
     classes = 3
     n_input = input_vector_size = 79  # input vector size
     drop_out = 0.4
-    lr = 0.00001
+    lr = 0.0001
 
     X_in = tf.reshape(features["x"], [-1, time_step, n_input])
 
-    lstm_cell_1 = tf.contrib.rnn.BasicLSTMCell(hidden_units[0], forget_bias=1.0, state_is_tuple=True)
+    lstm_cell_1 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=1.0, state_is_tuple=True)
+    lstm_cell_2 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=1.0, state_is_tuple=True)
+    lstm_cell_3 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=1.0, state_is_tuple=True)
+    lstm_cell_4 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=1.0, state_is_tuple=True)
+    lstm_cell_5 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=1.0, state_is_tuple=True)
+    lstm_cell_6 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=1.0, state_is_tuple=True)
+    lstm_cell_7 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=1.0, state_is_tuple=True)
+    lstm_cell_8 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=1.0, state_is_tuple=True)
+    lstm_cell_9 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=1.0, state_is_tuple=True)
+    lstm_cell_10 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=1.0, state_is_tuple=True)
 
-    lstm_cell_2 = tf.contrib.rnn.BasicLSTMCell(hidden_units[1], forget_bias=1.0, state_is_tuple=True)
-
-    multi_lstm_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell_1, lstm_cell_2])
+    multi_lstm_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell_1, lstm_cell_2, lstm_cell_3, lstm_cell_4, lstm_cell_5,
+                                                   lstm_cell_6, lstm_cell_7, lstm_cell_8, lstm_cell_9, lstm_cell_10])
 
     outputs, last_state = tf.nn.dynamic_rnn(cell=multi_lstm_cell, inputs=X_in, dtype=tf.float64)
     # outputs, last_state = tf.nn.dynamic_rnn(cell=lstm_cell_1, inputs=X_in, dtype=tf.float64)
     # shape: outputs:[None, 5, 256]t
     # shape: last_state:[None, 256]
-    print last_state[1][1]
+    # print last_state
+    print last_state[9][1]
 
-    dnn_1 = tf.layers.dense(inputs=last_state[1][1], units=1024, activation=tf.nn.relu, name='dnn_1')
+    dnn_1 = tf.layers.dense(inputs=last_state[9][1], units=1024, activation=tf.nn.relu, name='dnn_1')
     # shape:[None, 1024]
 
     drop_out_l = tf.layers.dropout(inputs=dnn_1, rate=drop_out, training=mode == tf.estimator.ModeKeys.TRAIN)
@@ -153,7 +162,7 @@ def main(argv):
     beg_date = '2015-01-01'
     # funds = ['002001_Nav']
     funds = ['240020_Nav']
-    train_steps = 5000
+    train_steps = 1700
     df_filtered = fund_Analysis(beg_date, funds)
 
     train_sets, cv_sets, test_sets = fund_data_proprocessing(beg_date, funds, df_filtered, 'Week')
@@ -187,7 +196,7 @@ def main(argv):
     # logging_hook = tf.train.LoggingTensorHook(tensors=tensors_to_log, every_n_iter=50)
 
     classifier = tf.estimator.Estimator(model_fn=lstm_model_fn,
-                                        model_dir="/home/ghao/PycharmProjects/Project_FundsAnalysis/LSTM_MultiCells")
+                                        model_dir="/home/admini/PycharmProjects/Project_FundsAnalysis/LSTM_MultiCells")
 
     # train_op = classifier.train(input_fn=train_input_fn, max_steps=train_steps, hooks=[logging_hook])
     with tf.device('/gpu:0'):
