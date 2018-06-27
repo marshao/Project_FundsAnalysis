@@ -27,9 +27,14 @@ df_funds = pd.DataFrame()
 
 
 class C_Fund_Analysis():
+
     def loadFundCodesFromPickle(self, path):
-        with open(path, 'rb') as f:
-            df_funds['fund_code'] = list(pickle.load(f))
+        fund_codes = ['240020', '519069', '460005', '161005', '166005', '163412', '002001']
+        if len(fund_codes) == 0:
+            with open(path, 'rb') as f:
+                df_funds['fund_code'] = list(pickle.load(f))
+        else:
+            df_funds['fund_code'] = fund_codes
 
         return df_funds
 
@@ -59,7 +64,7 @@ class C_Fund_Analysis():
 
         df_funds_nav.to_csv('fund_nav.csv', header=True, sep=',')
 
-    def loadFundsCumNavInCSV(self, before, path):
+    def loadFundsCumNavInCSV(self, before, path=None):
         df_funds_nav = pd.DataFrame()
         df_funds_list = self.loadFundCodesFromPickle(path)
 
@@ -68,6 +73,7 @@ class C_Fund_Analysis():
         before_date = datetime.strptime(before, '%Y-%m-%d')
 
         for fund in df_funds_list['fund_code']:
+            # print fund
             if i % 10 == 0:
                 print ('{}/{}'.format(i, count))
             i += 1
@@ -467,7 +473,7 @@ class C_Fund_Data_PreProcession():
 
 def fund_Analysis(beg_date, funds):
     fa = C_Fund_Analysis()
-    # fa.loadFundsCumNavInCSV(beg_date, 'basic_filtered.ticker')
+    #fa.loadFundsCumNavInCSV(beg_date, 'basic_filtered.ticker')
 
     df_nav = fa.readFundsDataFromCSV('fund_cum_nav.csv')
     df_filtered = fa.getDedicateFunds(df_nav, funds)
@@ -500,16 +506,18 @@ def fund_data_proprocessing(beg_date, funds, df_filtered, degroup='Roll'):
         sample_sets = dpp.getSamplesDegroupedByWeek(df_outlierd, funds)
         label_sets = dpp.getLabelVectors3levels(sample_sets, funds, up=0.6, low=-0.6)
 
-	train_sets, cv_sets, test_sets = dpp.getDataSets(sample_sets, label_sets, cv_por=0.1, test_por=0.1)
+    train_sets, cv_sets, test_sets = dpp.getDataSets(sample_sets, label_sets, cv_por=0.15, test_por=0.15)
     return train_sets, cv_sets, test_sets
 
 def main():
-    beg_date = '2015-01-01'
+    beg_date = '2012-05-01'
+
     # funds = ['240020_Nav', '002001_Nav','460005_Nav']
     # funds = ['240020_Nav']
     funds = ['002001_Nav']
     #funds = ['460005_Nav']
     df_filtered = fund_Analysis(beg_date, funds)
+    print df_filtered.shape
     fund_data_proprocessing(beg_date, funds, df_filtered)
     train_sets, cv_sets, test_sets = fund_data_proprocessing(beg_date, funds, df_filtered)
     #print len(cv_sets['sample_sets']), len(train_sets['sample_sets'])

@@ -7,7 +7,9 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression, LinearRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import BaggingClassifier
+from sklearn.ensemble import AdaBoostClassifier
 from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import learning_curve
 import matplotlib.pyplot as plt
 
 from C_Fund_Analysis import fund_Analysis, fund_data_proprocessing
@@ -73,7 +75,7 @@ def getTFDataSets(each_set):
 
 
 def main():
-	beg_date = '2015-01-01'
+	beg_date = '2012-05-01'
 	# funds = ['002001_Nav']
 	funds = ['240020_Nav']
 	train_steps = 1700
@@ -88,6 +90,9 @@ def main():
 	X = np.append(np.append(train_features_data, cv_features_data, axis=0), test_features_data, axis=0)
 	y = np.append(np.append(train_labels, cv_labels, axis=0), test_labels, axis=0)
 
+	print "Sample Size: {}".format(X.shape)
+	print "Labels size: {}".format(y.shape)
+
 	k_range = range(15, 25)
 	k_scores = []
 
@@ -96,34 +101,52 @@ def main():
 		knn_scores = cross_val_score(knn, X, y, cv=5)
 		k_scores.append(knn_scores.mean())
 
-	plt.plot(k_range, k_scores)
-	plt.xlabel('# of K')
-	plt.ylabel('Value of Ks')
-	plt.show()
-
-	knn = KNeighborsClassifier(n_neighbors=21)
-
-	knn_bag = BaggingClassifier(base_estimator=KNeighborsClassifier(n_neighbors=10), max_samples=0.5, max_features=0.5,
-								n_estimators=5)
-
-	random_forest = RandomForestClassifier(max_depth=5, max_features=0.5, n_estimators=10)
-	# random_forest.fit(train_features_data, train_labels)
-
+	knn = KNeighborsClassifier(n_neighbors=18)
 	knn_scores = cross_val_score(knn, X, y, cv=5)
-	print "Knn_Score:"
+	print "\n Knn_Score:"
 	print knn_scores
 	print knn_scores.mean()
 
+	knn_bag = BaggingClassifier(base_estimator=KNeighborsClassifier(n_neighbors=10), max_samples=0.5, max_features=0.5,
+								n_estimators=5)
 	knn_bag_scores = cross_val_score(knn_bag, X, y, cv=5)
-	print "Knn_bag_score:"
+	print "\n Knn_bag_score:"
 	print knn_bag_scores
 	print knn_bag_scores.mean()
 
+	random_forest = RandomForestClassifier(max_depth=5, max_features=0.5, n_estimators=10)
 	random_forest_score = cross_val_score(random_forest, X, y, cv=5)
-	print "Random Forest Score:"
+	print "\n Random Forest Score:"
 	print random_forest_score
 	print random_forest_score.mean()
 
+	ada_clf = AdaBoostClassifier(n_estimators=19)
+	ada_score = cross_val_score(ada_clf, X, y, cv=5)
+	print "\n AdaBoost Classifier Score:"
+	print ada_score
+	print ada_score.mean()
+
+	train_size = np.linspace(.1, 1.0, 20)
+
+	train_sizes, train_scores, test_scores = learning_curve(knn, X, y, cv=10,  # scoring='neg_mean_squared_error',
+															train_sizes=train_size)
+	train_scores_mean = np.mean(train_scores, axis=1)
+	test_scores_mean = np.mean(test_scores, axis=1)
+
+	plt.plot(train_size, train_scores_mean, 'o-', color='red', label='Training')
+	plt.plot(train_size, test_scores_mean, 'o-', color='blue', label='Testing')
+	plt.xlabel('# of size')
+	plt.ylabel('Value of scores')
+	plt.show()
+
+	'''
+	ada_range = range(10, 100)
+	ada_scores = []
+	for n in ada_range:
+		ada_score = cross_val_score(AdaBoostClassifier(n_estimators=n), X, y, cv=5)
+		ada_scores.append(ada_score.mean())
+
+	'''
 
 if __name__ == '__main__':
 	main()
