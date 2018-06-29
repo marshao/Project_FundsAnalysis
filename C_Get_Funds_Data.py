@@ -1656,7 +1656,7 @@ class FundSpider():
             self.__getFundHolderChg(fund_code)
             self.__getFundPositionDetail(fund_code)
             self.__getFundIndustryConfig(fund_code)
-            for j in range(6):
+            for j in range(1):
                 time.sleep(1)
                 for period in periods:
                     time.sleep(0.5)

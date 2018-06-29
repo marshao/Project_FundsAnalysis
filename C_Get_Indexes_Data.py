@@ -149,7 +149,8 @@ class StockIndexesSpider():
         print df
         return
     '''
-    def __getLocalIndices(self, amount=3000):
+
+    def __getLocalIndices(self, amount=8000):
 
         ticker_sets = ['000001', '000016', '000300', '399001', '399006', '000903', '000905', '000012', '000013']
         error_funds = []
@@ -174,7 +175,7 @@ class StockIndexesSpider():
         # dtime = datetime.datetime.strptime('2018-05-01 00:00:00', '%Y-%m-%d %H:%M:%S')
         dtime = datetime.datetime.now()
         cdate = time.mktime(dtime.timetuple())
-        # begin = -631008000 #(1950-01-01)
+        begin = -631008000  # (1950-01-01)
         # begin = 1514736000 #(2018-01-01)
         # begin = 1525104000 #(2018-05-01)
         # end = 1525708800  # (2018-05-08)
@@ -312,7 +313,7 @@ class StockIndexesSpider():
             df_indices = pd.DataFrame()
             for idx_name in idx_names:
                 # print idx_name[0]
-                sql_query = 'select adjclose, quote_date from DB_FundsAnalysis.tb_HistoryIndices where idx_name = "%s" order by quote_date DESC limit 1000' % (
+                sql_query = 'select adjclose, quote_date from DB_FundsAnalysis.tb_HistoryIndices where idx_name = "%s" order by quote_date DESC limit 3500' % (
                 idx_name[0])
                 df_temp = pd.read_sql(sql_query, con=self.db_engine)
                 df_temp.rename(columns={'adjclose': idx_name[0]}, inplace=True)
@@ -337,7 +338,7 @@ class StockIndexesSpider():
 
 def main():
     idx = StockIndexesSpider()
-    idx.getData()
+    #idx.getData()
     idx.saveIdxDataInCSV()
 
 if __name__ == "__main__":
