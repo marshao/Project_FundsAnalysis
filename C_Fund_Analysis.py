@@ -333,9 +333,10 @@ class C_Fund_Data_PreProcession():
         '''
         sample_sets = []
         count = df.shape[0]
-        # print b_y, b_w
+        # print df.shape
         for i in range(period * 2, count + 1):
             df_t = df.iloc[i - period:i, :]
+            #print df_t.shape
             sample_sets.append(df_t)
         return sample_sets
 

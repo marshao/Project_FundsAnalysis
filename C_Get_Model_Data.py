@@ -13,17 +13,18 @@ parser.add_argument('--batch_size', default=128, type=int)
 parser.add_argument('--train_steps', default=500, type=int)
 
 
-def getFeatures(samples):
-    array_z = np.zeros((1, 395), dtype=np.float32)
+def getFeatures(samples, period):
+    col_len = 82 * period
+    array_z = np.zeros((1, col_len), dtype=np.float32)
     feature_name = samples[0].columns.tolist()
-    feature_name = feature_name * 5
+    feature_name = feature_name * period
     for i in range(0, len(feature_name)):
         feature_name[i] = '{}_{}'.format(feature_name[i], (i + 1))
 
     for sample in samples:
         row, col = sample.shape
         columns = sample.columns
-        em_rows = 5 - row
+        em_rows = period - row
         if em_rows > 0:
             df = pd.DataFrame(np.zeros((em_rows, col)), columns=columns)
             sample = pd.concat([sample, df])
@@ -42,20 +43,22 @@ def getFeatures(samples):
     return features_data, feature_name
 
 
-def getLabels(labels):
+def getLabels(labels, tf=False):
     labels = pd.DataFrame(labels)
     # labels = np.array(labels)
+    if tf:
+        return np.array(labels)
     labels = labels.idxmax(axis=1)
     labels = np.array(labels.values)
     # print labels
     return labels
 
 
-def getTFDataSets(each_set):
+def getTFDataSets(each_set, period):
     samples = each_set['sample_sets']
     labels = each_set['label_sets']
 
-    features_data, features_name = getFeatures(samples)
+    features_data, features_name = getFeatures(samples, period)
     labels = getLabels(labels)
 
     return features_data, features_name, labels

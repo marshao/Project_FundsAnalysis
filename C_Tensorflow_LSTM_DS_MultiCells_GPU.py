@@ -81,7 +81,7 @@ def lstm_model_fn(features, labels, mode):
     :return:
     '''
 
-    time_step = cell_numbers = 5
+    time_step = cell_numbers = 25
     hidden_units = 512  # hidden unit size
     classes = 3
     n_input = input_vector_size = 82  # input vector size
@@ -93,26 +93,26 @@ def lstm_model_fn(features, labels, mode):
     lstm_cell_1 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=.5, state_is_tuple=True)
     lstm_cell_2 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=.5, state_is_tuple=True)
     lstm_cell_3 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=.5, state_is_tuple=True)
-    lstm_cell_4 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=.5, state_is_tuple=True)
-    lstm_cell_5 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=.5, state_is_tuple=True)
-    lstm_cell_6 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=.5, state_is_tuple=True)
-    lstm_cell_7 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=.5, state_is_tuple=True)
-    lstm_cell_8 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=.5, state_is_tuple=True)
-    lstm_cell_9 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=.5, state_is_tuple=True)
-    lstm_cell_10 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=.5, state_is_tuple=True)
+    # lstm_cell_4 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=.5, state_is_tuple=True)
+    # lstm_cell_5 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=.5, state_is_tuple=True)
+    # lstm_cell_6 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=.5, state_is_tuple=True)
+    # lstm_cell_7 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=.5, state_is_tuple=True)
+    # lstm_cell_8 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=.5, state_is_tuple=True)
+    # lstm_cell_9 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=.5, state_is_tuple=True)
+    # lstm_cell_10 = tf.contrib.rnn.BasicLSTMCell(hidden_units, forget_bias=.5, state_is_tuple=True)
 
-    multi_lstm_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell_1, lstm_cell_2, lstm_cell_3, lstm_cell_4, lstm_cell_5
-                                                      , lstm_cell_6, lstm_cell_7, lstm_cell_8, lstm_cell_9,
-                                                   lstm_cell_10])
+    multi_lstm_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_cell_1, lstm_cell_2, lstm_cell_3])
+
+    # lstm_cell_4, lstm_cell_5, lstm_cell_6, lstm_cell_7, lstm_cell_8, lstm_cell_9,lstm_cell_10])
 
     outputs, last_state = tf.nn.dynamic_rnn(cell=multi_lstm_cell, inputs=X_in, dtype=tf.float64)
     # outputs, last_state = tf.nn.dynamic_rnn(cell=lstm_cell_1, inputs=X_in, dtype=tf.float64)
     # shape: outputs:[None, 5, 256]t
     # shape: last_state:[None, 256]
     # print last_state
-    print last_state[9][1]
+    print last_state[2][1]
 
-    dnn_1 = tf.layers.dense(inputs=last_state[9][1], units=1024, activation=tf.nn.relu, name='dnn_1')
+    dnn_1 = tf.layers.dense(inputs=last_state[2][1], units=1024, activation=tf.nn.relu, name='dnn_1')
     # shape:[None, 1024]
 
     drop_out_l = tf.layers.dropout(inputs=dnn_1, rate=drop_out, training=mode == tf.estimator.ModeKeys.TRAIN)
@@ -155,19 +155,21 @@ def main(argv):
     beg_date = '2004-01-01'
     # funds = ['002001_Nav']
     funds = ['002001_Nav']
+    period = 25
     train_steps = 1700
     df_filtered = fund_Analysis(beg_date, funds)
 
     train_sets, cv_sets, test_sets = fund_data_proprocessing(beg_date, funds, df_filtered,
-                                                             degroup='Roll', split_portion=0.15)
+                                                             degroup='Roll', split_portion=0.15, period=period)
     # print train_sets.keys()
     # print train_sets['sample_sets'][0]
     # '''
-    test_features_data, features_name, test_labels = getTFDataSets(test_sets)
-    train_features_data, _, train_labels = getTFDataSets(train_sets)
-    cv_features_data, _, cv_labels = getTFDataSets(cv_sets)
 
-    print train_features_data.shape
+    test_features_data, features_name, test_labels = getTFDataSets(test_sets, period)
+    train_features_data, _, train_labels = getTFDataSets(train_sets, period)
+    cv_features_data, _, cv_labels = getTFDataSets(cv_sets, period)
+
+    print train_features_data.shape, train_labels.shape
 
     train_input_fn = tf.estimator.inputs.numpy_input_fn(x={"x": train_features_data},
                                                         y=train_labels,

@@ -38,9 +38,9 @@ def main():
     df_filtered = fund_Analysis(beg_date, funds)
     train_sets, cv_sets, test_sets = fund_data_proprocessing(beg_date, funds, df_filtered,
                                                              degroup='Roll', split_portion=0.15, period=period)
-    test_features_data, features_name, test_labels = getTFDataSets(test_sets)
-    train_features_data, _, train_labels = getTFDataSets(train_sets)
-    cv_features_data, _, cv_labels = getTFDataSets(cv_sets)
+    test_features_data, features_name, test_labels = getTFDataSets(test_sets, period)
+    train_features_data, _, train_labels = getTFDataSets(train_sets, period)
+    cv_features_data, _, cv_labels = getTFDataSets(cv_sets, period)
 
     X = np.append(np.append(train_features_data, cv_features_data, axis=0), test_features_data, axis=0)
     X_2 = np.append(train_features_data, cv_features_data, axis=0)
@@ -103,8 +103,7 @@ def main():
     svc_clf.fit(X_2, y_2)
     svc_clf.predict(test_features_data)
     metrixReport(test_labels, pre)
-    '''
-
+    
     train_size = np.linspace(.1, 1.0, 10)
     train_sizes, train_scores, test_scores = learning_curve(knn_bag, X, y, cv=5,  # scoring='neg_mean_squared_error',
                                                             train_sizes=train_size)
@@ -116,6 +115,7 @@ def main():
     plt.xlabel('# of size')
     plt.ylabel('Value of scores')
     plt.show()
+    '''
 
 if __name__ == '__main__':
     main()
