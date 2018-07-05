@@ -4,6 +4,7 @@
 # from __future__ import print_function
 
 from C_Fund_Analysis import fund_Analysis, fund_data_proprocessing
+from C_Get_Model_Data import getTFDataSets
 import tensorflow as tf
 import numpy as np
 import pandas as pd
@@ -13,7 +14,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--batch_size', default=128, type=int)
 parser.add_argument('--train_steps', default=500, type=int)
 
-
+'''
 def getFeatures(samples):
     array_z = np.zeros((1, 395), dtype=np.float32)
     feature_name = samples[0].columns.tolist()
@@ -60,7 +61,7 @@ def getTFDataSets(each_set):
     labels = getLabels(labels)
 
     return features_data, features_name, labels
-
+'''
 
 def lstm_model_fn(features, labels, mode):
     # Tensor esitmator wants the paramers must be:

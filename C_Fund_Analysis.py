@@ -169,13 +169,12 @@ class C_Fund_Analysis():
             return sorted_pair
         return pair
 
-	def getDedicateFunds(self, df_list, fund_codes, beg_date):
+    def getDedicateFunds(self, df_list, fund_codes, beg_date):
         if type(fund_codes) == 'list':
             fund_codes = str(fund_codes)
-
-		df = df_list[fund_codes]
-		df = df.iloc[df.index >= beg_date]
-		return df
+        df = df_list[fund_codes]
+        df = df.iloc[df.index >= beg_date]
+        return df
 
     def plotCorrHeadMap(self, df_corr):
         df_corr_values = df_corr.values
@@ -350,7 +349,8 @@ class C_Fund_Data_PreProcession():
         for fund in funds:
             labels = []
             for i in range(0, (count + 1 - 2 * period)):
-                w_inc = df['{}_{}'.format(fund, 'linc')][i:i + period].sum()
+                # w_inc_linc = df['{}_{}'.format(fund, 'linc')][i:i + period].sum()
+                w_inc = np.log(df[fund][i + period] / df[fund][i])
                 if (w_inc > up):
                     label = [1, 0, 0]
                     u_c += 1
@@ -365,7 +365,7 @@ class C_Fund_Data_PreProcession():
             label_sets.append(labels)
             label_sets.append(
                 ["fund: {}, Boundary: {}, Up: {},  Stay: {}, Low:{}".format(fund, (up, low), u_c, c, l_c)])
-			print "fund: {}, Boundary: {}, Up: {},  Stay: {}, Low:{}".format(fund, (up, low), u_c, c, l_c)
+            print "fund: {}, Boundary: {}, Up: {},  Stay: {}, Low:{}".format(fund, (up, low), u_c, c, l_c)
         return label_sets
 
     def getLabelVectors5Levels(self, sample_sets, funds, up, down):
@@ -383,7 +383,8 @@ class C_Fund_Data_PreProcession():
         for fund in funds:
             labels = []
             for sample in sample_sets:
-                w_inc = sample['{}_{}'.format(fund, 'linc')].sum()
+                # w_inc = sample['{}_{}'.format(fund, 'linc')].sum()
+                w_inc = np.log(sample[fund][-1] / sample[fund][0])
                 print w_inc
                 if w_inc > up_2:
                     label = [1, 0, 0, 0, 0]
@@ -406,11 +407,12 @@ class C_Fund_Data_PreProcession():
             label_sets.append(
                 ["fund: {}, Boundary: {}, Up2: {}, Up: {},  Stay: {}, Low:{}, Low2:{}".format(fund, (up, down), u_c_2,
                                                                                               u_c, c, l_c, l_c_2)])
-			print "fund: {}, Boundary: {}, Up2: {}, Up: {},  Stay: {}, Low:{}, Low2:{}".format(fund, (up, down), u_c_2,
+            print "fund: {}, Boundary: {}, Up2: {}, Up: {},  Stay: {}, Low:{}, Low2:{}".format(fund, (up, down), u_c_2,
 																							   u_c, c, l_c, l_c_2)
         return label_sets
 
-	def getLabelVectors3levelsByWeek(self, sample_sets, funds, up, low):
+    def getLabelVectors3levelsByWeek(self, sample_sets, funds, up, low):
+
         label_sets = []
         u_c = 0
         l_c = 0
@@ -419,7 +421,8 @@ class C_Fund_Data_PreProcession():
         for fund in funds:
             labels = []
             for sample in sample_sets:
-                w_inc = sample['{}_{}'.format(fund, 'linc')].sum()
+                # w_inc = sample['{}_{}'.format(fund, 'linc')].sum()
+                w_inc = np.log(sample[fund][-1] / sample[fund][0])
                 if (w_inc > up):
                     label = [1, 0, 0]
                     u_c += 1
@@ -434,7 +437,7 @@ class C_Fund_Data_PreProcession():
             label_sets.append(labels)
             label_sets.append(
                 ["fund: {}, Boundary: {}, Up: {},  Stay: {}, Low:{}".format(fund, (up, low), u_c, c, l_c)])
-			print "fund: {}, Boundary: {}, Up: {},  Stay: {}, Low:{}".format(fund, (up, low), u_c, c, l_c)
+            print "fund: {}, Boundary: {}, Up: {},  Stay: {}, Low:{}".format(fund, (up, low), u_c, c, l_c)
 
         return label_sets
 
@@ -482,7 +485,7 @@ def fund_Analysis(beg_date, funds):
     #fa.loadFundsCumNavInCSV(beg_date, 'basic_filtered.ticker')
 
     df_nav = fa.readFundsDataFromCSV('fund_cum_nav.csv')
-	df_filtered = fa.getDedicateFunds(df_nav, funds, beg_date)
+    df_filtered = fa.getDedicateFunds(df_nav, funds, beg_date)
     '''
     # Statistic Analysis
     df_sta = fa.fundsStatistics(df_filtered)
@@ -494,8 +497,7 @@ def fund_Analysis(beg_date, funds):
     return df_filtered
 
 
-def fund_data_proprocessing(beg_date, funds, df_filtered, degroup='Roll', split_portion=0.15):
-    period = 5
+def fund_data_proprocessing(beg_date, funds, df_filtered, degroup='Roll', split_portion=0.15, period=5):
     dpp = C_Fund_Data_PreProcession()
     df_indices = dpp.readIndicesFromCSV(beg_date, 'indices_data.csv')
     df_combined = dpp.mergeDFs(left=df_filtered, right=df_indices, left_index=True, right_index=True, how='left')
@@ -503,29 +505,31 @@ def fund_data_proprocessing(beg_date, funds, df_filtered, degroup='Roll', split_
     df_linc = dpp.getDailyLogIncrease(df_roll_meaned, funds)
     df_normalized = dpp.getNormalization(df_linc)
     df_outlierd = dpp.getOutlier(df_normalized)
+
     if degroup == 'Roll':
         # NN Period Rolling Degoup
         sample_sets = dpp.getDegroupedSampleByRolling(df_outlierd, funds, period=period)
-		label_sets = dpp.getDegroupedLabelVectors3levelsByRolling(df_outlierd, funds, up=0.01, low=-0.3, period=period)
+        # Using Prior Normalized Data to Calculte label
+        label_sets = dpp.getDegroupedLabelVectors3levelsByRolling(df_linc, funds, up=0.005, low=-0.012, period=period)
     elif degroup == 'Week':
         # Calendar Week Degroup
+        # Week label_Sets calculation has some problem not solved yet
         sample_sets = dpp.getSamplesDegroupedByWeek(df_outlierd, funds)
-		label_sets = dpp.getLabelVectors3levelsByWeek(sample_sets, funds, up=0.01, low=-0.2)
-
-	train_sets, cv_sets, test_sets = dpp.getDataSets(sample_sets, label_sets, cv_por=split_portion,
+        label_sets = dpp.getLabelVectors3levelsByWeek(sample_sets, funds, up=0.01, low=-0.2)
+    train_sets, cv_sets, test_sets = dpp.getDataSets(sample_sets, label_sets, cv_por=split_portion,
 													 test_por=split_portion)
     return train_sets, cv_sets, test_sets
 
 def main():
-	beg_date = '2004-01-01'
+    beg_date = '2004-01-01'
 
     # funds = ['240020_Nav', '002001_Nav','460005_Nav']
     # funds = ['240020_Nav']
     funds = ['002001_Nav']
     #funds = ['460005_Nav']
     df_filtered = fund_Analysis(beg_date, funds)
-	train_sets, cv_sets, test_sets = fund_data_proprocessing(beg_date, funds, df_filtered, degroup='Roll',
-															 split_portion=0.15)
+    train_sets, cv_sets, test_sets = fund_data_proprocessing(beg_date, funds, df_filtered, degroup='Roll',
+                                                             split_portion=0.15, period=25)
 
 
 
