@@ -448,16 +448,17 @@ class FundList(Fund):
 def funds_basic_sort():
     fund_list = FundList()
     funds = fund_list.getBuyableFunds()
-    funds = fund_list.getFundsInType(funds, 1)
+    # funds = fund_list.getFundsInType(funds, 1)
     funds = fund_list.getFundsIssuedBeforeThan(df_list=funds, datestr='20150101')
     funds = fund_list.filterFundsAssetValue(df_list=funds, asset_value=5.0)
-    print funds.shape[0]
+    print "Fund Asset Value filtered {}".format(funds.shape[0])
     funds = fund_list.filterFundManagerHistory(df_list=funds)
-    print funds.shape[0]
+    print "Fund Managers filtered {}".format(funds.shape[0])
     funds = fund_list.filterFundsCumIncomeRateHeads(df_list=funds)
-    print funds.shape[0]
+    print "Fund Cumulative Income Rate filtered {}".format(funds.shape[0])
+
     funds = fund_list.filterFundsPeriodicIncrease(df_list=funds, cls_mark='good', above_sh300=True)
-    print funds.shape[0]
+    print "Fund Periodic Increase filtered {}".format(funds.shape[0])
 
     fund_list.dumpFundCodes('basic_filtered', funds)
 
